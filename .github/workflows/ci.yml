@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go-ci:
+    name: go-ci
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Verify go.mod and go.sum are tidy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          go mod tidy
+
+          if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
+            echo "go.mod or go.sum is not tidy. Run 'go mod tidy' locally and commit the result."
+            git status --porcelain go.mod go.sum
+            git diff -- go.mod go.sum || true
+            exit 1
+          fi
+
+      - name: Verify formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          files="$(git ls-files '*.go')"
+          if [ -z "${files}" ]; then
+            echo "No Go files found"
+            exit 0
+          fi
+
+          unformatted="$(gofmt -l ${files})"
+          if [ -n "${unformatted}" ]; then
+            echo "These files are not gofmt-formatted:"
+            echo "${unformatted}"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        run: go build ./...
