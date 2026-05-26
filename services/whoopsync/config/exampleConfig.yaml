@@ -1,0 +1,115 @@
+app_name: whoopsync
+
+env: dev
+
+logger:
+  level: info
+
+  json: true
+
+runtime:
+  # Сколько времени даём сервису на graceful shutdown
+  shutdown_timeout: 15s
+
+storage:
+  postgres:
+    dsn: ""
+
+    max_open_conns: 10
+
+    max_idle_conns: 5
+
+    conn_max_lifetime: 30m
+
+    conn_max_idle_time: 5m
+
+whoopsync:
+  # Режим запуска сервиса.
+  #
+  # oauth_url:
+  #   Напечатать WHOOP OAuth authorization URL и выйти.
+  #   Это первый шаг подключения WHOOP-аккаунта.
+  #
+  # oauth_code:
+  #   Обменять authorization_code на access/refresh tokens
+  #   и сохранить их в БД.
+  #
+  # once:
+  #   Один раз сходить в WHOOP API, сохранить raw data
+  #   и обновить daily_health_snapshots.
+  #
+  # interval:
+  #   Работать постоянно и синкать данные по расписанию.
+  mode: oauth_url
+
+  # ID пользователя из таблицы users.
+  user_id: 1
+
+  # Используется только в режиме oauth_code.
+  authorization_code: ""
+
+  # Интервал между синками в режиме.
+  interval: 30m
+
+  # Сколько времени ждём постгрю при старте.
+  startup_timeout: 60s
+
+  # Как часто пингуем постгрю во время ожидания готовности.
+  ping_interval: 2s
+
+  # За сколько дней назад забирать данные из WHOOP API.
+  lookback_days: 3
+
+  # За сколько до expires_at обновлять access token.
+  # Например, если access token истекает через 2 минуты или меньше,
+  # сначала делаем refresh, потом идём в WHOOP API.
+  token_refresh_skew: 2m
+
+whoop:
+  # Client ID из WHOOP Developer Dashboard.
+  client_id: ""
+
+  # Client Secret из WHOOP Developer Dashboard.
+  client_secret: ""
+
+  # Redirect URL, который указан в WHOOP Developer Dashboard.
+  redirect_url: "http://localhost:8080/whoop/oauth/callback"
+
+  # OAuth scopes — какие данные WHOOP разрешает читать приложению.
+  #
+  # offline:
+  #   нужен, чтобы получить refresh token и не логиниться каждый день.
+  #
+  # read:sleep:
+  #   чтение сна, стадий сна, sleep performance, efficiency и т.д.
+  #
+  # read:recovery:
+  #   чтение recovery score, HRV, resting HR, SpO2, skin temperature.
+  #
+  # read:cycles:
+  #   чтение cycle/day strain.
+  #
+  # read:workout:
+  #   чтение тренировок и strain по workout.
+  scopes:
+    - offline
+    - read:sleep
+    - read:recovery
+    - read:cycles
+    - read:workout
+
+  # WHOOP OAuth authorization endpoint.
+  # Используется в режиме oauth_url для генерации ссылки авторизации.
+  auth_url: "https://api.prod.whoop.com/oauth/oauth2/auth"
+
+  # WHOOP OAuth token endpoint.
+  # Используется для обмена authorization code на tokens
+  # и для refresh access token.
+  token_url: "https://api.prod.whoop.com/oauth/oauth2/token"
+
+  # Базовый URL WHOOP Developer API v2.
+  # От него будут строиться запросы к sleep/recovery/cycle/workout endpoints.
+  api_base_url: "https://api.prod.whoop.com/developer/v2"
+
+  # Timeout HTTP-клиента для запросов к WHOOP.
+  http_timeout: 30s
