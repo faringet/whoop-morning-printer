@@ -1,0 +1,9 @@
+# IDE
+.idea/
+
+# env
+/.env
+
+# local migrator configs
+/cmd/migrator/config.yaml
+/cmd/migrator/config.local.yaml
