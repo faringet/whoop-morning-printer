@@ -8,6 +8,9 @@
 /services/whoopsync/config/config.yaml
 /services/whoopsync/config/config.local.yaml
 
+/services/morningbot/config/config.yaml
+/services/morningbot/config/config.local.yaml
+
 # local migrator configs
 /cmd/migrator/config.yaml
 /cmd/migrator/config.local.yaml

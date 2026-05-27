@@ -1,0 +1,43 @@
+app_name: morningbot
+
+env: dev
+
+logger:
+  level: info
+  json: true
+
+runtime:
+  # Сколько времени даём сервису на graceful shutdown.
+  shutdown_timeout: 15s
+
+storage:
+  postgres:
+    dsn: ""
+    max_open_conns: 10
+    max_idle_conns: 5
+    conn_max_lifetime: 30m
+    conn_max_idle_time: 5m
+
+telegram_bot:
+  token: ""
+  debug: false
+  use_webhook: false
+  webhook_url: ""
+  poll_timeout: 30s
+
+access:
+  allowed_user_ids:
+    - 123456789
+  allowed_chat_ids: []
+  deny_message: "⛔ Доступ к боту ограничен."
+
+morningbot:
+  user_id: 1
+  timezone: "Europe/Moscow"
+  default_wake_time: "08:30"
+
+  # За сколько до wake_at нужно подготовить локальный контур.
+  prepare_before: 5m
+
+  # Сколько ждать после wake_at финальный WHOOP-отчёт.
+  final_deadline_after: 90m
