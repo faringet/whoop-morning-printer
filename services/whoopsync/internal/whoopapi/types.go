@@ -85,8 +85,8 @@ type SleepScore struct {
 	StageSummary               SleepStageSummary `json:"stage_summary"`
 	SleepNeeded                SleepNeeded       `json:"sleep_needed"`
 	RespiratoryRate            float64           `json:"respiratory_rate"`
-	SleepPerformancePercentage int               `json:"sleep_performance_percentage"`
-	SleepConsistencyPercentage int               `json:"sleep_consistency_percentage"`
+	SleepPerformancePercentage float64           `json:"sleep_performance_percentage"`
+	SleepConsistencyPercentage float64           `json:"sleep_consistency_percentage"`
 	SleepEfficiencyPercentage  float64           `json:"sleep_efficiency_percentage"`
 }
 
@@ -121,8 +121,8 @@ type Recovery struct {
 
 type RecoveryScore struct {
 	UserCalibrating  bool    `json:"user_calibrating"`
-	RecoveryScore    int     `json:"recovery_score"`
-	RestingHeartRate int     `json:"resting_heart_rate"`
+	RecoveryScore    float64 `json:"recovery_score"`
+	RestingHeartRate float64 `json:"resting_heart_rate"`
 	HRVRMSSDMilli    float64 `json:"hrv_rmssd_milli"`
 	SpO2Percentage   float64 `json:"spo2_percentage"`
 	SkinTempCelsius  float64 `json:"skin_temp_celsius"`

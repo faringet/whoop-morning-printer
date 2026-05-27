@@ -196,7 +196,7 @@ func applySleep(snapshot *storage.DailyHealthSnapshot, sleep *whoopapi.SleepReco
 			score.SleepNeeded.NeedFromRecentNapMilli,
 	)
 
-	snapshot.SleepScore = intPtr(score.SleepPerformancePercentage)
+	snapshot.SleepScore = intPtr(roundToInt(score.SleepPerformancePercentage))
 	snapshot.SleepMinutes = intPtr(sleepMinutes)
 	snapshot.SleepNeededMinutes = intPtr(sleepNeededMinutes)
 	snapshot.SleepVsNeedPct = intPtr(sleepVsNeedPct(sleepMinutes, sleepNeededMinutes))
@@ -208,7 +208,7 @@ func applySleep(snapshot *storage.DailyHealthSnapshot, sleep *whoopapi.SleepReco
 	snapshot.RestorativeMinutes = intPtr(millisToMinutes(stages.TotalSlowWaveSleepTimeMilli + stages.TotalREMSleepTimeMilli))
 
 	snapshot.SleepEfficiencyPct = floatPtr(score.SleepEfficiencyPercentage)
-	snapshot.SleepConsistencyPct = floatPtr(float64(score.SleepConsistencyPercentage))
+	snapshot.SleepConsistencyPct = floatPtr(score.SleepConsistencyPercentage)
 	snapshot.RespiratoryRate = floatPtr(score.RespiratoryRate)
 }
 
@@ -225,9 +225,9 @@ func applyRecovery(snapshot *storage.DailyHealthSnapshot, recovery *whoopapi.Rec
 
 	score := recovery.Recovery.Score
 
-	snapshot.RecoveryScore = intPtr(score.RecoveryScore)
+	snapshot.RecoveryScore = intPtr(roundToInt(score.RecoveryScore))
 	snapshot.HRVRMSSDMS = floatPtr(score.HRVRMSSDMilli)
-	snapshot.RestingHeartRateBPM = intPtr(score.RestingHeartRate)
+	snapshot.RestingHeartRateBPM = intPtr(roundToInt(score.RestingHeartRate))
 	snapshot.SpO2Pct = floatPtr(score.SpO2Percentage)
 	snapshot.SkinTempCelsius = floatPtr(score.SkinTempCelsius)
 }
@@ -488,4 +488,8 @@ func scoreStatePtr(v whoopapi.ScoreState) *whoopapi.ScoreState {
 	}
 
 	return &v
+}
+
+func roundToInt(v float64) int {
+	return int(math.Round(v))
 }
