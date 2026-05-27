@@ -3,6 +3,7 @@ module github.com/faringet/whoop-morning-printer
 go 1.25.8
 
 require (
+	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/spf13/viper v1.21.0
 )
