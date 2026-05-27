@@ -4,6 +4,10 @@
 # env
 /.env
 
+# local service configs
+/services/whoopsync/config/config.yaml
+/services/whoopsync/config/config.local.yaml
+
 # local migrator configs
 /cmd/migrator/config.yaml
 /cmd/migrator/config.local.yaml
