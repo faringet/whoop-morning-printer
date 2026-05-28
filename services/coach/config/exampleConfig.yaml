@@ -1,0 +1,97 @@
+app_name: coach
+
+env: dev
+
+logger:
+  level: info
+  json: true
+
+runtime:
+  # Сколько времени даём сервису на graceful shutdown.
+  shutdown_timeout: 15s
+
+storage:
+  postgres:
+    dsn: ""
+    max_open_conns: 10
+    max_idle_conns: 5
+    conn_max_lifetime: 30m
+    conn_max_idle_time: 5m
+
+ollama:
+  base_url: "http://127.0.0.1:11434"
+  timeout: 180s
+  model: "qwen2.5:7b"
+  keep_alive: "2h"
+  temperature: 0.2
+  top_p: 0.9
+
+coach:
+  # Режим работы.
+  #
+  # once:
+  #   Один раз берёт последний/актуальный snapshot,
+  #   генерирует morning_advice и выходит.
+  #   Удобно для локальной проверки.
+  #
+  # interval:
+  #   Периодически проверяет snapshots и генерирует advice.
+  #   Простая daemon-логика.
+  #
+  # wake_watch:
+  #   Основной утренний режим.
+  #   Смотрит на активные wake_plans, заранее прогревает Ollama,
+  #   ждёт ready snapshot от whoopsync и быстро создаёт morning_advice.
+  mode: wake_watch
+
+  user_id: 1
+  timezone: "Europe/Moscow"
+
+  # Интервал для режима interval.
+  interval: 10m
+
+  # Как часто wake_watch проверяет:
+  # - активные wake_plans;
+  # - появился ли ready snapshot;
+  # - нужно ли прогреть Ollama.
+  #
+  # Чем меньше значение, тем быстрее coach отреагирует после готовности WHOOP.
+  poll_interval: 15s
+
+  # За сколько дней назад можно искать snapshot.
+  # На случай, если дата сна/утра чуть съехала или тестируем не сегодня.
+  snapshot_lookback_days: 3
+
+  # true:
+  #   Генерируем advice только если daily_health_snapshots.data_state = ready.
+  #
+  # false:
+  #   Можно генерировать preliminary advice из partial snapshot.
+  require_ready_snapshot: true
+
+  # Если true, после final_deadline_at можно использовать partial snapshot,
+  # чтобы всё равно выдать осторожный совет.
+  #
+  # Пока лучше false: пусть coach ждёт нормальные WHOOP-данные.
+  allow_partial_after_deadline: false
+
+  warmup_on_start: true
+
+  warmup_before_wake: 15m
+
+  warmup_timeout: 2m
+
+  min_warmup_interval: 30m
+
+  prompt_version: "coach_morning_v1"
+
+  prompt_path: ""
+
+  max_retries: 2
+
+  retry_backoff: 750ms
+
+  max_advice_runes: 900
+
+  # Максимальная длина девиза (смехуечек в финале).
+  max_motto_runes: 180
