@@ -304,13 +304,10 @@ func (s *Postgres) UpsertMorningAdvice(ctx context.Context, input UpsertMorningA
 	}
 
 	input.MainSignal = strings.TrimSpace(input.MainSignal)
-	if input.MainSignal == "" {
-		return MorningAdvice{}, errors.New("coach postgres upsert morning advice: main_signal is required")
-	}
 
 	input.AdviceText = strings.TrimSpace(input.AdviceText)
 	if input.AdviceText == "" {
-		return MorningAdvice{}, errors.New("coach postgres upsert morning advice: advice_text is required")
+		return MorningAdvice{}, errors.New("coach postgres upsert morning advice: rendered_text is required")
 	}
 
 	input.Motto = strings.TrimSpace(input.Motto)

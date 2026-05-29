@@ -85,7 +85,7 @@ type Advice struct {
 	Model         string
 	PromptVersion string
 
-	DayType    DayType
+	DayType    string
 	MainSignal string
 	AdviceText string
 	Motto      string
@@ -96,14 +96,8 @@ type Advice struct {
 }
 
 type advicePayload struct {
-	DayType           DayType           `json:"day_type"`
-	MainSignal        string            `json:"main_signal"`
-	AdviceText        string            `json:"advice_text"`
-	Motto             string            `json:"motto"`
-	TrainingIntensity TrainingIntensity `json:"training_intensity"`
-	RiskLevel         RiskLevel         `json:"risk_level"`
-	FocusHint         string            `json:"focus_hint"`
-	RecoveryHint      string            `json:"recovery_hint"`
+	RenderedText string `json:"rendered_text"`
+	Motto        string `json:"motto"`
 
 	Model         string `json:"model"`
 	PromptVersion string `json:"prompt_version"`
@@ -198,14 +192,8 @@ func (a *Advisor) Build(ctx context.Context, input BuildInput) (Advice, error) {
 	response = LimitResponseText(response, a.cfg.MaxAdviceRunes, a.cfg.MaxMottoRunes)
 
 	payload, err := json.Marshal(advicePayload{
-		DayType:           response.DayType,
-		MainSignal:        response.MainSignal,
-		AdviceText:        response.AdviceText,
-		Motto:             response.Motto,
-		TrainingIntensity: response.TrainingIntensity,
-		RiskLevel:         response.RiskLevel,
-		FocusHint:         response.FocusHint,
-		RecoveryHint:      response.RecoveryHint,
+		RenderedText: response.RenderedText,
+		Motto:        response.Motto,
 
 		Model:         a.cfg.Model,
 		PromptVersion: a.cfg.PromptVersion,
@@ -226,9 +214,9 @@ func (a *Advisor) Build(ctx context.Context, input BuildInput) (Advice, error) {
 		Model:         a.cfg.Model,
 		PromptVersion: a.cfg.PromptVersion,
 
-		DayType:    response.DayType,
-		MainSignal: response.MainSignal,
-		AdviceText: response.AdviceText,
+		DayType:    "unknown",
+		MainSignal: "",
+		AdviceText: response.RenderedText,
 		Motto:      response.Motto,
 
 		PayloadJSON: payload,
@@ -299,38 +287,13 @@ func validateSnapshot(snapshot Snapshot) error {
 }
 
 func buildMetricsMap(snapshot Snapshot) map[string]any {
-	metrics := map[string]any{
-		"snapshot_id": snapshot.ID,
-		"user_id":     snapshot.UserID,
-		"date":        snapshot.Date.UTC().Format("2006-01-02"),
-		"data_state":  snapshot.DataState,
-
-		"sleep_score":    snapshot.SleepScore,
-		"recovery_score": snapshot.RecoveryScore,
-		"day_strain":     snapshot.DayStrain,
-
-		"sleep_minutes":        snapshot.SleepMinutes,
-		"sleep_needed_minutes": snapshot.SleepNeededMinutes,
-		"sleep_vs_need_pct":    snapshot.SleepVsNeedPct,
-
-		"awake_minutes":       snapshot.AwakeMinutes,
-		"light_sleep_minutes": snapshot.LightSleepMinutes,
-		"deep_sleep_minutes":  snapshot.DeepSleepMinutes,
-		"rem_sleep_minutes":   snapshot.REMSleepMinutes,
-		"restorative_minutes": snapshot.RestorativeMinutes,
-
-		"sleep_efficiency_pct":  snapshot.SleepEfficiencyPct,
-		"sleep_consistency_pct": snapshot.SleepConsistencyPct,
-
-		"respiratory_rate":       snapshot.RespiratoryRate,
-		"hrv_rmssd_ms":           snapshot.HRVRMSSDMS,
-		"resting_heart_rate_bpm": snapshot.RestingHeartRateBPM,
-		"spo2_pct":               snapshot.SpO2Pct,
-		"skin_temp_celsius":      snapshot.SkinTempCelsius,
-		"source_updated_at":      formatOptionalUTC(snapshot.SourceUpdatedAt),
+	return map[string]any{
+		"sleep_score":       snapshot.SleepScore,
+		"recovery_score":    snapshot.RecoveryScore,
+		"day_strain":        snapshot.DayStrain,
+		"sleep_vs_need_pct": snapshot.SleepVsNeedPct,
+		"awake_minutes":     snapshot.AwakeMinutes,
 	}
-
-	return metrics
 }
 
 func formatDate(t time.Time, timezone string) string {
@@ -347,16 +310,6 @@ func formatOptionalLocalTime(t *time.Time, timezone string) string {
 	loc := loadLocationOrUTC(timezone)
 
 	return t.In(loc).Format("2006-01-02 15:04")
-}
-
-func formatOptionalUTC(t *time.Time) *string {
-	if t == nil || t.IsZero() {
-		return nil
-	}
-
-	value := t.UTC().Format(time.RFC3339)
-
-	return &value
 }
 
 func loadLocationOrUTC(timezone string) *time.Location {

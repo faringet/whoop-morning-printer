@@ -4,19 +4,16 @@ import "strings"
 
 const ellipsis = "…"
 
-func LimitResponseText(response LLMResponse, maxAdviceRunes int, maxMottoRunes int) LLMResponse {
-	if maxAdviceRunes <= 0 {
-		maxAdviceRunes = 900
+func LimitResponseText(response LLMResponse, maxRenderedTextRunes int, maxMottoRunes int) LLMResponse {
+	if maxRenderedTextRunes <= 0 {
+		maxRenderedTextRunes = 900
 	}
 	if maxMottoRunes <= 0 {
 		maxMottoRunes = 180
 	}
 
-	response.MainSignal = truncateRunes(normalizeOneLine(response.MainSignal), 120)
-	response.AdviceText = truncateRunes(normalizeText(response.AdviceText), maxAdviceRunes)
+	response.RenderedText = truncateRunes(normalizeText(response.RenderedText), maxRenderedTextRunes)
 	response.Motto = truncateRunes(normalizeOneLine(response.Motto), maxMottoRunes)
-	response.FocusHint = truncateRunes(normalizeOneLine(response.FocusHint), 180)
-	response.RecoveryHint = truncateRunes(normalizeOneLine(response.RecoveryHint), 180)
 
 	return response
 }
