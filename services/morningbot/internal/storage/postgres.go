@@ -11,6 +11,8 @@ import (
 
 var ErrNotFound = errors.New("morningbot storage: not found")
 
+const printJobTypeFinalReport = "final_report"
+
 type Postgres struct {
 	db *sql.DB
 }
@@ -123,8 +125,57 @@ func (s *Postgres) ScheduleWakePlan(ctx context.Context, input ScheduleWakePlanI
 		_ = tx.Rollback()
 	}()
 
+	wakePlan, err := upsertWakePlan(ctx, tx, input)
+	if err != nil {
+		return ScheduleWakePlanResult{}, err
+	}
+
+	wakeReceiptJob, err := ensureWakePlanPrintJob(ctx, tx, ensurePrintJobInput{
+		UserID:        input.UserID,
+		WakePlanID:    wakePlan.ID,
+		ExistingJobID: wakePlan.WakeReceiptJobID,
+		JobType:       string(PrintJobTypeWakeReceipt),
+		NotBefore:     input.WakeAt.UTC(),
+	})
+	if err != nil {
+		return ScheduleWakePlanResult{}, fmt.Errorf("morningbot postgres ensure wake receipt print job: %w", err)
+	}
+
+	wakePlan, err = attachWakeReceiptJob(ctx, tx, wakePlan.ID, wakeReceiptJob.ID)
+	if err != nil {
+		return ScheduleWakePlanResult{}, err
+	}
+
+	finalReportJob, err := ensureWakePlanPrintJob(ctx, tx, ensurePrintJobInput{
+		UserID:        input.UserID,
+		WakePlanID:    wakePlan.ID,
+		ExistingJobID: wakePlan.FinalReportJobID,
+		JobType:       printJobTypeFinalReport,
+		NotBefore:     input.WakeAt.UTC(),
+	})
+	if err != nil {
+		return ScheduleWakePlanResult{}, fmt.Errorf("morningbot postgres ensure final report print job: %w", err)
+	}
+
+	wakePlan, err = attachFinalReportJob(ctx, tx, wakePlan.ID, finalReportJob.ID)
+	if err != nil {
+		return ScheduleWakePlanResult{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return ScheduleWakePlanResult{}, fmt.Errorf("morningbot postgres schedule wake plan commit tx: %w", err)
+	}
+
+	return ScheduleWakePlanResult{
+		WakePlan:       wakePlan,
+		WakeReceiptJob: wakeReceiptJob,
+	}, nil
+}
+
+func upsertWakePlan(ctx context.Context, tx *sql.Tx, input ScheduleWakePlanInput) (WakePlan, error) {
 	var wakePlan WakePlan
-	err = tx.QueryRowContext(ctx, `
+
+	err := tx.QueryRowContext(ctx, `
 		INSERT INTO wake_plans (
 			user_id,
 			date,
@@ -179,131 +230,214 @@ func (s *Postgres) ScheduleWakePlan(ctx context.Context, input ScheduleWakePlanI
 		string(input.Source),
 	).Scan(wakePlanScanDest(&wakePlan)...)
 	if err != nil {
-		return ScheduleWakePlanResult{}, fmt.Errorf("morningbot postgres upsert wake plan: %w", err)
+		return WakePlan{}, fmt.Errorf("morningbot postgres upsert wake plan: %w", err)
+	}
+
+	return wakePlan, nil
+}
+
+type ensurePrintJobInput struct {
+	UserID     int64
+	WakePlanID int64
+
+	ExistingJobID *int64
+
+	JobType   string
+	NotBefore time.Time
+}
+
+func ensureWakePlanPrintJob(ctx context.Context, tx *sql.Tx, input ensurePrintJobInput) (PrintJob, error) {
+	jobType := strings.TrimSpace(input.JobType)
+	if jobType == "" {
+		return PrintJob{}, errors.New("job_type is required")
+	}
+	if input.UserID <= 0 {
+		return PrintJob{}, errors.New("user_id must be > 0")
+	}
+	if input.WakePlanID <= 0 {
+		return PrintJob{}, errors.New("wake_plan_id must be > 0")
+	}
+	if input.NotBefore.IsZero() {
+		return PrintJob{}, errors.New("not_before is required")
+	}
+
+	if input.ExistingJobID != nil && *input.ExistingJobID > 0 {
+		job, err := resetExistingPrintJob(ctx, tx, *input.ExistingJobID, input.NotBefore)
+		if err == nil {
+			return job, nil
+		}
+
+		if !errors.Is(err, sql.ErrNoRows) {
+			return PrintJob{}, err
+		}
 	}
 
 	var job PrintJob
 
-	if wakePlan.WakeReceiptJobID != nil {
-		err = tx.QueryRowContext(ctx, `
-			UPDATE print_jobs
-			SET
-				status = $1,
-				not_before = $2,
-				payload_type = 'text/plain',
-				payload_text = NULL,
-				claimed_by = NULL,
-				processing_until = NULL,
-				printed_at = NULL,
-				failed_at = NULL,
-				error_message = NULL,
-				updated_at = NOW()
-			WHERE id = $3
-			RETURNING
-				id,
-				user_id,
-				wake_plan_id,
-				type,
-				status,
-				not_before,
-				payload_type,
-				payload_text,
-				claimed_by,
-				processing_until,
-				printed_at,
-				failed_at,
-				error_message,
-				created_at,
-				updated_at
-		`, string(PrintJobStatusPending), input.WakeAt.UTC(), *wakePlan.WakeReceiptJobID).Scan(printJobScanDest(&job)...)
-		if err != nil {
-			return ScheduleWakePlanResult{}, fmt.Errorf("morningbot postgres update wake receipt print job: %w", err)
-		}
-	} else {
-		err = tx.QueryRowContext(ctx, `
-			INSERT INTO print_jobs (
-				user_id,
-				wake_plan_id,
-				type,
-				status,
-				not_before,
-				payload_type,
-				payload_text,
-				created_at,
-				updated_at
-			)
-			VALUES (
-				$1,
-				$2,
-				$3,
-				$4,
-				$5,
-				'text/plain',
-				NULL,
-				NOW(),
-				NOW()
-			)
-			RETURNING
-				id,
-				user_id,
-				wake_plan_id,
-				type,
-				status,
-				not_before,
-				payload_type,
-				payload_text,
-				claimed_by,
-				processing_until,
-				printed_at,
-				failed_at,
-				error_message,
-				created_at,
-				updated_at
-		`,
-			input.UserID,
-			wakePlan.ID,
-			string(PrintJobTypeWakeReceipt),
-			string(PrintJobStatusPending),
-			input.WakeAt.UTC(),
-		).Scan(printJobScanDest(&job)...)
-		if err != nil {
-			return ScheduleWakePlanResult{}, fmt.Errorf("morningbot postgres create wake receipt print job: %w", err)
-		}
-
-		err = tx.QueryRowContext(ctx, `
-			UPDATE wake_plans
-			SET
-				wake_receipt_job_id = $1,
-				updated_at = NOW()
-			WHERE id = $2
-			RETURNING
-				id,
-				user_id,
-				date,
-				wake_at,
-				prepare_at,
-				final_deadline_at,
-				status,
-				source,
-				wake_receipt_job_id,
-				final_report_job_id,
-				fallback_job_id,
-				created_at,
-				updated_at
-		`, job.ID, wakePlan.ID).Scan(wakePlanScanDest(&wakePlan)...)
-		if err != nil {
-			return ScheduleWakePlanResult{}, fmt.Errorf("morningbot postgres attach wake receipt job: %w", err)
-		}
+	err := tx.QueryRowContext(ctx, `
+		INSERT INTO print_jobs (
+			user_id,
+			wake_plan_id,
+			type,
+			status,
+			not_before,
+			payload_type,
+			payload_text,
+			claimed_by,
+			processing_until,
+			printed_at,
+			failed_at,
+			error_message,
+			created_at,
+			updated_at
+		)
+		VALUES (
+			$1,
+			$2,
+			$3,
+			$4,
+			$5,
+			'text/plain',
+			'',
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			NOW(),
+			NOW()
+		)
+		RETURNING
+			id,
+			user_id,
+			wake_plan_id,
+			type,
+			status,
+			not_before,
+			COALESCE(payload_type, 'text/plain') AS payload_type,
+			COALESCE(payload_text, '') AS payload_text,
+			claimed_by,
+			processing_until,
+			printed_at,
+			failed_at,
+			error_message,
+			created_at,
+			updated_at
+	`,
+		input.UserID,
+		input.WakePlanID,
+		jobType,
+		string(PrintJobStatusPending),
+		input.NotBefore.UTC(),
+	).Scan(printJobScanDest(&job)...)
+	if err != nil {
+		return PrintJob{}, fmt.Errorf("create %s print job: %w", jobType, err)
 	}
 
-	if err := tx.Commit(); err != nil {
-		return ScheduleWakePlanResult{}, fmt.Errorf("morningbot postgres schedule wake plan commit tx: %w", err)
+	return job, nil
+}
+
+func resetExistingPrintJob(ctx context.Context, tx *sql.Tx, printJobID int64, notBefore time.Time) (PrintJob, error) {
+	var job PrintJob
+
+	err := tx.QueryRowContext(ctx, `
+		UPDATE print_jobs
+		SET
+			status = $1,
+			not_before = $2,
+			payload_type = 'text/plain',
+			payload_text = '',
+			claimed_by = NULL,
+			processing_until = NULL,
+			printed_at = NULL,
+			failed_at = NULL,
+			error_message = NULL,
+			updated_at = NOW()
+		WHERE id = $3
+		RETURNING
+			id,
+			user_id,
+			wake_plan_id,
+			type,
+			status,
+			not_before,
+			COALESCE(payload_type, 'text/plain') AS payload_type,
+			COALESCE(payload_text, '') AS payload_text,
+			claimed_by,
+			processing_until,
+			printed_at,
+			failed_at,
+			error_message,
+			created_at,
+			updated_at
+	`, string(PrintJobStatusPending), notBefore.UTC(), printJobID).Scan(printJobScanDest(&job)...)
+	if err != nil {
+		return PrintJob{}, err
 	}
 
-	return ScheduleWakePlanResult{
-		WakePlan:       wakePlan,
-		WakeReceiptJob: job,
-	}, nil
+	return job, nil
+}
+
+func attachWakeReceiptJob(ctx context.Context, tx *sql.Tx, wakePlanID int64, printJobID int64) (WakePlan, error) {
+	var wakePlan WakePlan
+
+	err := tx.QueryRowContext(ctx, `
+		UPDATE wake_plans
+		SET
+			wake_receipt_job_id = $1,
+			updated_at = NOW()
+		WHERE id = $2
+		RETURNING
+			id,
+			user_id,
+			date,
+			wake_at,
+			prepare_at,
+			final_deadline_at,
+			status,
+			source,
+			wake_receipt_job_id,
+			final_report_job_id,
+			fallback_job_id,
+			created_at,
+			updated_at
+	`, printJobID, wakePlanID).Scan(wakePlanScanDest(&wakePlan)...)
+	if err != nil {
+		return WakePlan{}, fmt.Errorf("morningbot postgres attach wake receipt job: %w", err)
+	}
+
+	return wakePlan, nil
+}
+
+func attachFinalReportJob(ctx context.Context, tx *sql.Tx, wakePlanID int64, printJobID int64) (WakePlan, error) {
+	var wakePlan WakePlan
+
+	err := tx.QueryRowContext(ctx, `
+		UPDATE wake_plans
+		SET
+			final_report_job_id = $1,
+			updated_at = NOW()
+		WHERE id = $2
+		RETURNING
+			id,
+			user_id,
+			date,
+			wake_at,
+			prepare_at,
+			final_deadline_at,
+			status,
+			source,
+			wake_receipt_job_id,
+			final_report_job_id,
+			fallback_job_id,
+			created_at,
+			updated_at
+	`, printJobID, wakePlanID).Scan(wakePlanScanDest(&wakePlan)...)
+	if err != nil {
+		return WakePlan{}, fmt.Errorf("morningbot postgres attach final report job: %w", err)
+	}
+
+	return wakePlan, nil
 }
 
 func (s *Postgres) GetNearestActiveWakePlan(ctx context.Context, userID int64, now time.Time) (WakePlan, error) {
@@ -491,8 +625,8 @@ func (s *Postgres) CreateTestPrintJob(ctx context.Context, input CreateTestPrint
 			type,
 			status,
 			not_before,
-			payload_type,
-			payload_text,
+			COALESCE(payload_type, 'text/plain') AS payload_type,
+			COALESCE(payload_text, '') AS payload_text,
 			claimed_by,
 			processing_until,
 			printed_at,
