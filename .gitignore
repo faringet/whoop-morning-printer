@@ -17,6 +17,10 @@
 /services/receiptworker/config/config.yaml
 /services/receiptworker/config/config.local.yaml
 
+/services/printeragent/config/config.yaml
+/services/printeragent/config/config.local.yaml
+
 # local migrator configs
 /cmd/migrator/config.yaml
 /cmd/migrator/config.local.yaml
+
