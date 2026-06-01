@@ -1,0 +1,67 @@
+app_name: printeragent
+
+env: dev
+
+logger:
+  level: info
+  json: true
+
+runtime:
+  # Сколько времени даём сервису на graceful shutdown.
+  shutdown_timeout: 15s
+
+storage:
+  postgres:
+    dsn: ""
+    max_open_conns: 10
+    max_idle_conns: 5
+    conn_max_lifetime: 30m
+    conn_max_idle_time: 5m
+
+printeragent:
+  # Режим работы.
+  #
+  # once
+  #
+  # interval
+  mode: once
+
+  user_id: 1
+
+  # Как часто проверять ready jobs в режиме interval.
+  interval: 5s
+
+  # Сколько задач максимум брать за один тик.
+  poll_limit: 5
+
+  # ID воркера, который будет записываться в print_jobs.claimed_by.
+  worker_id: ""
+
+  # На сколько времени job переводится в processing.
+  #
+  # Если printeragent упал, зависшая processing-задача
+  # сможет быть переиспользована после истечения claim_ttl.
+  claim_ttl: 2m
+
+  # Искусственная пауза после каждой печати.
+  print_delay: 0s
+
+output:
+  # file:
+  #   сохранить чек в .txt файл.
+  #
+  # stdout:
+  #   вывести чек в stdout/logs.
+  #
+  # Позже добавим:
+  # raw_printer / windows_print.
+  mode: file
+
+  # Папка для .txt чеков в file mode.
+  dir: "./out/receipts"
+
+  # Создавать папку output.dir, если её нет.
+  create_dirs: true
+
+  # Дополнительные пустые строки в конце.
+  trailing_blank_lines: 0

@@ -1,0 +1,5 @@
+morningbot: go run ./services/morningbot/cmd/morningbot
+whoopsync: go run ./services/whoopsync/cmd/whoopsync
+coach: go run ./services/coach/cmd/coach
+receiptworker: go run ./services/receiptworker/cmd/receiptworker
+printeragent: go run ./services/printeragent/cmd/printeragent
