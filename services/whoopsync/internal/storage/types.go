@@ -16,6 +16,9 @@ type Store interface {
 	SaveTokens(ctx context.Context, tokens Tokens) error
 	GetTokens(ctx context.Context, userID int64) (Tokens, error)
 
+	GetNearestActiveWakePlan(ctx context.Context, userID int64, now time.Time) (WakePlan, error)
+	GetDailyHealthSnapshotState(ctx context.Context, userID int64, date time.Time) (DataState, error)
+
 	UpsertRawWHOOPObject(ctx context.Context, object RawWHOOPObject) error
 	UpsertDailyHealthSnapshot(ctx context.Context, snapshot DailyHealthSnapshot) error
 }
@@ -32,6 +35,69 @@ type Tokens struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
+
+type WakePlan struct {
+	ID     int64
+	UserID int64
+
+	Date time.Time
+
+	WakeAt          time.Time
+	PrepareAt       time.Time
+	FinalDeadlineAt time.Time
+
+	Status WakePlanStatus
+	Source string
+
+	WakeReceiptJobID *int64
+	FinalReportJobID *int64
+	FallbackJobID    *int64
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (p WakePlan) IsInsideSyncWindow(now time.Time) bool {
+	if p.ID <= 0 {
+		return false
+	}
+
+	if now.IsZero() {
+		now = time.Now()
+	}
+
+	now = now.UTC()
+
+	return !now.Before(p.PrepareAt.UTC()) && !now.After(p.FinalDeadlineAt.UTC())
+}
+
+func (p WakePlan) IsBeforeSyncWindow(now time.Time) bool {
+	if p.ID <= 0 {
+		return false
+	}
+
+	if now.IsZero() {
+		now = time.Now()
+	}
+
+	return now.UTC().Before(p.PrepareAt.UTC())
+}
+
+type WakePlanStatus string
+
+const (
+	WakePlanStatusScheduled          WakePlanStatus = "scheduled"
+	WakePlanStatusWakeReceiptReady   WakePlanStatus = "wake_receipt_ready"
+	WakePlanStatusWakeReceiptPrinted WakePlanStatus = "wake_receipt_printed"
+	WakePlanStatusWaitingWHOOP       WakePlanStatus = "waiting_whoop"
+	WakePlanStatusWaitingAdvice      WakePlanStatus = "waiting_advice"
+	WakePlanStatusFinalReportReady   WakePlanStatus = "final_report_ready"
+	WakePlanStatusFinalReportPrinted WakePlanStatus = "final_report_printed"
+	WakePlanStatusFallbackPrinted    WakePlanStatus = "fallback_printed"
+	WakePlanStatusDone               WakePlanStatus = "done"
+	WakePlanStatusCancelled          WakePlanStatus = "cancelled"
+	WakePlanStatusFailed             WakePlanStatus = "failed"
+)
 
 type RawWHOOPObject struct {
 	UserID     int64

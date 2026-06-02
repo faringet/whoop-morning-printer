@@ -232,6 +232,42 @@ func (w *Worker) processJob(ctx context.Context, job storage.PrintJob) error {
 		slog.Time("printed_at", derefTime(printedJob.PrintedAt)),
 	)
 
+	if printedJob.WakePlanID != nil && *printedJob.WakePlanID > 0 {
+		if err := w.completeWakePlanIfPossible(ctx, *printedJob.WakePlanID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (w *Worker) completeWakePlanIfPossible(ctx context.Context, wakePlanID int64) error {
+	result, err := w.store.CompleteWakePlanIfPrinted(ctx, storage.CompleteWakePlanIfPrintedInput{
+		WakePlanID: wakePlanID,
+	})
+	if errors.Is(err, storage.ErrNotFound) {
+		w.log.Warn("wake plan not found during completion check",
+			slog.Int64("wake_plan_id", wakePlanID),
+		)
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("complete wake plan if printed: %w", err)
+	}
+
+	if result.Completed {
+		w.log.Info("wake plan completed",
+			slog.Int64("wake_plan_id", result.WakePlanID),
+			slog.String("status", result.Status),
+		)
+		return nil
+	}
+
+	w.log.Debug("wake plan not completed yet",
+		slog.Int64("wake_plan_id", result.WakePlanID),
+		slog.String("status", result.Status),
+	)
+
 	return nil
 }
 

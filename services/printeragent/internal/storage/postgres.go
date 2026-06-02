@@ -249,6 +249,67 @@ func (s *Postgres) MarkPrintJobFailed(ctx context.Context, input MarkPrintJobFai
 	return job, nil
 }
 
+func (s *Postgres) CompleteWakePlanIfPrinted(ctx context.Context, input CompleteWakePlanIfPrintedInput) (WakePlanCompletionResult, error) {
+	if s == nil || s.db == nil {
+		return WakePlanCompletionResult{}, errors.New("printeragent postgres storage: db is nil")
+	}
+	if input.WakePlanID <= 0 {
+		return WakePlanCompletionResult{}, errors.New("printeragent complete wake plan: wake_plan_id must be > 0")
+	}
+
+	var result WakePlanCompletionResult
+
+	err := s.db.QueryRowContext(ctx, `
+		WITH completed AS (
+			SELECT
+				wp.id
+			FROM wake_plans wp
+			JOIN print_jobs wake_job
+				ON wake_job.id = wp.wake_receipt_job_id
+			JOIN print_jobs final_job
+				ON final_job.id = wp.final_report_job_id
+			WHERE wp.id = $1
+			  AND wp.status = 'scheduled'
+			  AND wake_job.status = 'printed'
+			  AND final_job.status = 'printed'
+		)
+		UPDATE wake_plans wp
+		SET
+			status = 'done',
+			updated_at = NOW()
+		WHERE wp.id IN (SELECT id FROM completed)
+		RETURNING
+			wp.id,
+			wp.status
+	`, input.WakePlanID).Scan(&result.WakePlanID, &result.Status)
+	if err == nil {
+		result.Completed = true
+		return result, nil
+	}
+
+	if !errors.Is(err, sql.ErrNoRows) {
+		return WakePlanCompletionResult{}, fmt.Errorf("printeragent complete wake plan: %w", err)
+	}
+
+	err = s.db.QueryRowContext(ctx, `
+		SELECT
+			id,
+			status
+		FROM wake_plans
+		WHERE id = $1
+	`, input.WakePlanID).Scan(&result.WakePlanID, &result.Status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return WakePlanCompletionResult{}, ErrNotFound
+	}
+	if err != nil {
+		return WakePlanCompletionResult{}, fmt.Errorf("printeragent get wake plan status after completion check: %w", err)
+	}
+
+	result.Completed = false
+
+	return result, nil
+}
+
 type printJobScanner interface {
 	Scan(dest ...any) error
 }

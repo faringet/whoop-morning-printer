@@ -12,6 +12,8 @@ import (
 	"github.com/faringet/whoop-morning-printer/services/whoopsync/internal/whoopapi"
 )
 
+const wakeWatchPlanCheckInterval = time.Minute
+
 type WorkerConfig struct {
 	UserID int64
 
@@ -115,6 +117,12 @@ func (w *Worker) RunInterval(ctx context.Context) error {
 		return fmt.Errorf("syncer: worker is nil")
 	}
 
+	w.log.Info("whoop interval worker started",
+		slog.Int64("user_id", w.cfg.UserID),
+		slog.Duration("interval", w.cfg.Interval),
+		slog.Int("lookback_days", w.cfg.LookbackDays),
+	)
+
 	if err := w.SyncOnce(ctx); err != nil {
 		w.log.Error("initial whoop sync failed", slog.Any("err", err))
 	}
@@ -134,6 +142,131 @@ func (w *Worker) RunInterval(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+func (w *Worker) RunWakeWatch(ctx context.Context) error {
+	if w == nil {
+		return fmt.Errorf("syncer: worker is nil")
+	}
+
+	w.log.Info("whoop wake_watch worker started",
+		slog.Int64("user_id", w.cfg.UserID),
+		slog.Duration("active_interval", w.cfg.Interval),
+		slog.Duration("idle_poll_interval", wakeWatchPlanCheckInterval),
+		slog.Int("lookback_days", w.cfg.LookbackDays),
+	)
+
+	if err := w.store.EnsureUser(ctx, w.cfg.UserID, w.cfg.Timezone); err != nil {
+		return err
+	}
+
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		sleepFor, err := w.runWakeWatchTick(ctx)
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return err
+			}
+
+			w.log.Error("whoop wake_watch tick failed", slog.Any("err", err))
+			sleepFor = wakeWatchPlanCheckInterval
+		}
+
+		if sleepFor <= 0 {
+			sleepFor = wakeWatchPlanCheckInterval
+		}
+
+		if err := sleepContext(ctx, sleepFor); err != nil {
+			return err
+		}
+	}
+}
+
+func (w *Worker) runWakeWatchTick(ctx context.Context) (time.Duration, error) {
+	now := w.now().UTC()
+
+	wakePlan, err := w.store.GetNearestActiveWakePlan(ctx, w.cfg.UserID, now)
+	if errors.Is(err, storage.ErrNotFound) {
+		w.log.Debug("wake_watch: no active wake plan",
+			slog.Int64("user_id", w.cfg.UserID),
+			slog.Time("now", now),
+		)
+
+		return wakeWatchPlanCheckInterval, nil
+	}
+	if err != nil {
+		return wakeWatchPlanCheckInterval, fmt.Errorf("get nearest active wake plan: %w", err)
+	}
+
+	if wakePlan.IsBeforeSyncWindow(now) {
+		sleepFor := time.Until(wakePlan.PrepareAt)
+		sleepFor = minDuration(sleepFor, wakeWatchPlanCheckInterval)
+		sleepFor = maxDuration(sleepFor, time.Second)
+
+		w.log.Debug("wake_watch: wake plan is before prepare window",
+			slog.Int64("wake_plan_id", wakePlan.ID),
+			slog.Time("prepare_at", wakePlan.PrepareAt),
+			slog.Time("wake_at", wakePlan.WakeAt),
+			slog.Time("final_deadline_at", wakePlan.FinalDeadlineAt),
+			slog.Duration("sleep_for", sleepFor),
+		)
+
+		return sleepFor, nil
+	}
+
+	if !wakePlan.IsInsideSyncWindow(now) {
+		w.log.Debug("wake_watch: wake plan is outside sync window",
+			slog.Int64("wake_plan_id", wakePlan.ID),
+			slog.Time("prepare_at", wakePlan.PrepareAt),
+			slog.Time("wake_at", wakePlan.WakeAt),
+			slog.Time("final_deadline_at", wakePlan.FinalDeadlineAt),
+			slog.Time("now", now),
+		)
+
+		return wakeWatchPlanCheckInterval, nil
+	}
+
+	state, err := w.store.GetDailyHealthSnapshotState(ctx, wakePlan.UserID, wakePlan.Date)
+	if err == nil && state == storage.DataStateReady {
+		w.log.Debug("wake_watch: snapshot already ready",
+			slog.Int64("wake_plan_id", wakePlan.ID),
+			slog.Time("date", wakePlan.Date),
+			slog.String("data_state", string(state)),
+		)
+
+		return wakeWatchPlanCheckInterval, nil
+	}
+	if err != nil && !errors.Is(err, storage.ErrNotFound) {
+		return wakeWatchPlanCheckInterval, fmt.Errorf("get snapshot state: %w", err)
+	}
+
+	if errors.Is(err, storage.ErrNotFound) {
+		w.log.Info("wake_watch: snapshot not found, syncing whoop",
+			slog.Int64("wake_plan_id", wakePlan.ID),
+			slog.Time("date", wakePlan.Date),
+			slog.Time("prepare_at", wakePlan.PrepareAt),
+			slog.Time("wake_at", wakePlan.WakeAt),
+			slog.Time("final_deadline_at", wakePlan.FinalDeadlineAt),
+		)
+	} else {
+		w.log.Info("wake_watch: snapshot is not ready, syncing whoop",
+			slog.Int64("wake_plan_id", wakePlan.ID),
+			slog.Time("date", wakePlan.Date),
+			slog.String("data_state", string(state)),
+			slog.Time("prepare_at", wakePlan.PrepareAt),
+			slog.Time("wake_at", wakePlan.WakeAt),
+			slog.Time("final_deadline_at", wakePlan.FinalDeadlineAt),
+		)
+	}
+
+	if err := w.SyncOnce(ctx); err != nil {
+		return w.cfg.Interval, err
+	}
+
+	return w.cfg.Interval, nil
 }
 
 func (w *Worker) SyncOnce(ctx context.Context) error {
@@ -291,4 +424,37 @@ func scopesFromTokenResponse(token whoopapi.TokenResponse, fallback []string) []
 	}
 
 	return scopes
+}
+
+func sleepContext(ctx context.Context, duration time.Duration) error {
+	if duration <= 0 {
+		return nil
+	}
+
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+
+	case <-timer.C:
+		return nil
+	}
+}
+
+func minDuration(a time.Duration, b time.Duration) time.Duration {
+	if a <= b {
+		return a
+	}
+
+	return b
+}
+
+func maxDuration(a time.Duration, b time.Duration) time.Duration {
+	if a >= b {
+		return a
+	}
+
+	return b
 }
