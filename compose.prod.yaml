@@ -23,7 +23,9 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - wmp
+      wmp:
+        aliases:
+          - wmp-postgres
 
   migrator:
     image: ghcr.io/${GHCR_OWNER}/whoop-morning-printer/migrator:${IMAGE_TAG}
@@ -33,7 +35,7 @@ services:
       - ./.env
     environment:
       MIGRATOR_ENV: ${APP_ENV}
-      MIGRATOR_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      MIGRATOR_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@wmp-postgres:5432/${POSTGRES_DB}?sslmode=disable
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,7 +52,7 @@ services:
       - ./.env
     environment:
       MORNINGBOT_ENV: ${APP_ENV}
-      MORNINGBOT_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      MORNINGBOT_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@wmp-postgres:5432/${POSTGRES_DB}?sslmode=disable
       MORNINGBOT_TELEGRAM_BOT_TOKEN: ${MORNINGBOT_TELEGRAM_BOT_TOKEN}
     depends_on:
       migrator:
@@ -68,7 +70,7 @@ services:
       - ./.env
     environment:
       WHOOPSYNC_ENV: ${APP_ENV}
-      WHOOPSYNC_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      WHOOPSYNC_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@wmp-postgres:5432/${POSTGRES_DB}?sslmode=disable
       WHOOPSYNC_WHOOP_CLIENT_ID: ${WHOOPSYNC_WHOOP_CLIENT_ID}
       WHOOPSYNC_WHOOP_CLIENT_SECRET: ${WHOOPSYNC_WHOOP_CLIENT_SECRET}
     depends_on:
@@ -87,7 +89,7 @@ services:
       - ./.env
     environment:
       COACH_ENV: ${APP_ENV}
-      COACH_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      COACH_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@wmp-postgres:5432/${POSTGRES_DB}?sslmode=disable
       COACH_OLLAMA_BASE_URL: ${COACH_OLLAMA_BASE_URL}
       COACH_OLLAMA_MODEL: ${COACH_OLLAMA_MODEL}
     depends_on:
@@ -107,7 +109,7 @@ services:
       - ./.env
     environment:
       RECEIPTWORKER_ENV: ${APP_ENV}
-      RECEIPTWORKER_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      RECEIPTWORKER_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@wmp-postgres:5432/${POSTGRES_DB}?sslmode=disable
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -119,7 +121,7 @@ services:
 networks:
   wmp:
     driver: bridge
-##todo переписать и сделать красиво чтобы не зависить от олламы соседнего сервиса
+
   tbs-llm:
     external: true
     name: telegram-bot-scraper_tbs
