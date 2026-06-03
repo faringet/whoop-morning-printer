@@ -17,10 +17,12 @@ func main() {
 	cfg := config.New()
 
 	log := logger.NewLogger(logger.Options{
-		AppName: cfg.Base.AppName,
-		Env:     cfg.Base.Env,
-		Level:   cfg.Logger.Level,
-		JSON:    cfg.Logger.JSON,
+		AppName:     cfg.Base.AppName,
+		Env:         cfg.Base.Env,
+		Level:       cfg.Logger.Level,
+		JSON:        cfg.Logger.JSON,
+		FileEnabled: cfg.Logger.FileEnabled,
+		FilePath:    cfg.Logger.FilePath,
 	})
 
 	application, err := app.New(cfg, log)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -15,8 +16,9 @@ import (
 )
 
 const (
-	ModeFile   = "file"
-	ModeStdout = "stdout"
+	ModeFile    = "file"
+	ModeStdout  = "stdout"
+	ModePrinter = "printer"
 )
 
 type Config struct {
@@ -26,6 +28,13 @@ type Config struct {
 	CreateDirs bool
 
 	TrailingBlankLines int
+
+	PrinterName string
+	CPI         int
+	LPI         int
+
+	SpoolDir       string
+	KeepSpoolFiles bool
 }
 
 type Result struct {
@@ -74,6 +83,39 @@ func New(log *slog.Logger, cfg Config) (Printer, error) {
 				slog.String("layer", "output"),
 				slog.String("module", "printeragent.output.stdout"),
 			),
+			trailingBlankLines: cfg.TrailingBlankLines,
+		}, nil
+
+	case ModePrinter:
+		cfg.PrinterName = strings.TrimSpace(cfg.PrinterName)
+		if cfg.PrinterName == "" {
+			return nil, errors.New("printeragent output printer: printer_name is required")
+		}
+
+		if cfg.CPI <= 0 {
+			cfg.CPI = 16
+		}
+
+		if cfg.LPI <= 0 {
+			cfg.LPI = 8
+		}
+
+		cfg.SpoolDir = strings.TrimSpace(cfg.SpoolDir)
+		if cfg.SpoolDir == "" {
+			cfg.SpoolDir = "./out/print-spool"
+		}
+
+		return &LPPrinter{
+			log: log.With(
+				slog.String("layer", "output"),
+				slog.String("module", "printeragent.output.printer"),
+			),
+			printerName:        cfg.PrinterName,
+			cpi:                cfg.CPI,
+			lpi:                cfg.LPI,
+			spoolDir:           cfg.SpoolDir,
+			createDirs:         cfg.CreateDirs,
+			keepSpoolFiles:     cfg.KeepSpoolFiles,
 			trailingBlankLines: cfg.TrailingBlankLines,
 		}, nil
 
@@ -170,6 +212,98 @@ func (p *StdoutPrinter) Print(ctx context.Context, job storage.PrintJob) (Result
 
 	return Result{
 		Destination: "stdout",
+		Bytes:       len([]byte(payload)),
+	}, nil
+}
+
+type LPPrinter struct {
+	log *slog.Logger
+
+	printerName string
+
+	cpi int
+	lpi int
+
+	spoolDir       string
+	createDirs     bool
+	keepSpoolFiles bool
+
+	trailingBlankLines int
+}
+
+func (p *LPPrinter) Print(ctx context.Context, job storage.PrintJob) (Result, error) {
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
+
+	if err := validatePrintJob(job); err != nil {
+		return Result{}, err
+	}
+
+	if p.createDirs {
+		if err := os.MkdirAll(p.spoolDir, 0o755); err != nil {
+			return Result{}, fmt.Errorf("printeragent output printer: create spool dir: %w", err)
+		}
+	}
+
+	payload := preparePayload(job.PayloadText, p.trailingBlankLines)
+
+	fileName := buildFileName(job)
+	path := filepath.Join(p.spoolDir, fileName)
+
+	if err := os.WriteFile(path, []byte(payload), 0o644); err != nil {
+		return Result{}, fmt.Errorf("printeragent output printer: write spool receipt: %w", err)
+	}
+
+	args := []string{
+		"-d", p.printerName,
+		"-o", fmt.Sprintf("cpi=%d", p.cpi),
+		"-o", fmt.Sprintf("lpi=%d", p.lpi),
+		path,
+	}
+
+	cmd := exec.CommandContext(ctx, "lp", args...)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		p.log.Error("lp print command failed",
+			slog.Int64("print_job_id", job.ID),
+			slog.String("type", string(job.Type)),
+			slog.String("printer_name", p.printerName),
+			slog.String("spool_path", path),
+			slog.String("command", "lp"),
+			slog.Any("args", args),
+			slog.String("output", strings.TrimSpace(string(output))),
+			slog.Any("err", err),
+		)
+
+		return Result{}, fmt.Errorf("printeragent output printer: lp failed: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+
+	if !p.keepSpoolFiles {
+		if err := os.Remove(path); err != nil {
+			p.log.Warn("remove spool receipt failed",
+				slog.Int64("print_job_id", job.ID),
+				slog.String("spool_path", path),
+				slog.Any("err", err),
+			)
+		}
+	}
+
+	p.log.Info("receipt sent to printer",
+		slog.Int64("print_job_id", job.ID),
+		slog.String("type", string(job.Type)),
+		slog.String("printer_name", p.printerName),
+		slog.String("spool_path", path),
+		slog.Int("cpi", p.cpi),
+		slog.Int("lpi", p.lpi),
+		slog.Bool("keep_spool_files", p.keepSpoolFiles),
+		slog.String("lp_output", strings.TrimSpace(string(output))),
+		slog.Int("bytes", len([]byte(payload))),
+	)
+
+	return Result{
+		Destination: "printer:" + p.printerName,
 		Bytes:       len([]byte(payload)),
 	}, nil
 }

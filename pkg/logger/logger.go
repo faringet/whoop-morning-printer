@@ -1,29 +1,36 @@
 package logger
 
 import (
+	"fmt"
+	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 )
 
 type Options struct {
-	AppName string
-	Env     string
-	Level   string
-	JSON    bool
+	AppName     string
+	Env         string
+	Level       string
+	JSON        bool
+	FileEnabled bool
+	FilePath    string
 }
 
 func NewLogger(opts Options) *slog.Logger {
 	lvl := parseLevel(strings.ToLower(strings.TrimSpace(opts.Level)))
 	handlerOpts := handlerOptions(lvl)
 
+	w := writer(opts)
+
 	var h slog.Handler
 	if opts.JSON {
-		h = slog.NewJSONHandler(os.Stdout, handlerOpts)
+		h = slog.NewJSONHandler(w, handlerOpts)
 	} else {
-		h = slog.NewTextHandler(os.Stdout, handlerOpts)
+		h = slog.NewTextHandler(w, handlerOpts)
 	}
 
 	host, _ := os.Hostname()
@@ -38,7 +45,7 @@ func NewLogger(opts Options) *slog.Logger {
 		env = "dev"
 	}
 
-	return slog.New(h).With(
+	log := slog.New(h).With(
 		slog.String("app", app),
 		slog.String("env", env),
 		slog.String("host", host),
@@ -46,6 +53,37 @@ func NewLogger(opts Options) *slog.Logger {
 		slog.String("goarch", runtime.GOARCH),
 		slog.String("goos", runtime.GOOS),
 	)
+
+	slog.SetDefault(log)
+
+	return log
+}
+
+func writer(opts Options) io.Writer {
+	console := os.Stdout
+
+	if !opts.FileEnabled {
+		return console
+	}
+
+	filePath := strings.TrimSpace(opts.FilePath)
+	if filePath == "" {
+		filePath = "./logs/app.log"
+	}
+
+	dir := filepath.Dir(filePath)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "logger: create log dir failed: %v\n", err)
+		return console
+	}
+
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "logger: open log file failed: %v\n", err)
+		return console
+	}
+
+	return io.MultiWriter(console, file)
 }
 
 func handlerOptions(lvl slog.Level) *slog.HandlerOptions {

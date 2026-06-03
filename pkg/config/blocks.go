@@ -38,8 +38,10 @@ func (r *Runtime) Validate() error {
 }
 
 type Logger struct {
-	Level string `mapstructure:"level"`
-	JSON  bool   `mapstructure:"json"`
+	Level       string `mapstructure:"level"`
+	JSON        bool   `mapstructure:"json"`
+	FileEnabled bool   `mapstructure:"file_enabled"`
+	FilePath    string `mapstructure:"file_path"`
 }
 
 func (l *Logger) Validate() error {
@@ -54,10 +56,17 @@ func (l *Logger) Validate() error {
 
 	switch l.Level {
 	case "debug", "info", "warn", "warning", "error":
-		return nil
 	default:
 		return fmt.Errorf("logger.level must be one of [debug, info, warn, warning, error], got %q", l.Level)
 	}
+
+	l.FilePath = strings.TrimSpace(l.FilePath)
+
+	if l.FileEnabled && l.FilePath == "" {
+		return errors.New("logger.file_path is required when logger.file_enabled=true")
+	}
+
+	return nil
 }
 
 type Storage struct {
