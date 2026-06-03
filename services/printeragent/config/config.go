@@ -102,6 +102,16 @@ type Output struct {
 	CreateDirs *bool `mapstructure:"create_dirs"`
 
 	TrailingBlankLines int `mapstructure:"trailing_blank_lines"`
+
+	PrinterName string `mapstructure:"printer_name"`
+
+	CPI int `mapstructure:"cpi"`
+
+	LPI int `mapstructure:"lpi"`
+
+	SpoolDir string `mapstructure:"spool_dir"`
+
+	KeepSpoolFiles *bool `mapstructure:"keep_spool_files"`
 }
 
 func (o *Output) setDefaults() {
@@ -115,6 +125,21 @@ func (o *Output) setDefaults() {
 		o.Dir = "./out/receipts"
 	}
 
+	o.PrinterName = strings.TrimSpace(o.PrinterName)
+
+	if o.CPI <= 0 {
+		o.CPI = 16
+	}
+
+	if o.LPI <= 0 {
+		o.LPI = 8
+	}
+
+	o.SpoolDir = strings.TrimSpace(o.SpoolDir)
+	if o.SpoolDir == "" {
+		o.SpoolDir = "./out/print-spool"
+	}
+
 	if o.TrailingBlankLines < 0 {
 		o.TrailingBlankLines = 0
 	}
@@ -126,13 +151,31 @@ func (o *Output) Validate() error {
 	}
 
 	switch o.Mode {
-	case "file", "stdout":
+	case "file", "stdout", "printer":
 	default:
-		return fmt.Errorf("output.mode must be one of [file, stdout], got %q", o.Mode)
+		return fmt.Errorf("output.mode must be one of [file, stdout, printer], got %q", o.Mode)
 	}
 
 	if o.Mode == "file" && strings.TrimSpace(o.Dir) == "" {
 		return errors.New("output.dir is required for file mode")
+	}
+
+	if o.Mode == "printer" {
+		if strings.TrimSpace(o.PrinterName) == "" {
+			return errors.New("output.printer_name is required for printer mode")
+		}
+
+		if o.CPI <= 0 {
+			return errors.New("output.cpi must be > 0 for printer mode")
+		}
+
+		if o.LPI <= 0 {
+			return errors.New("output.lpi must be > 0 for printer mode")
+		}
+
+		if strings.TrimSpace(o.SpoolDir) == "" {
+			return errors.New("output.spool_dir is required for printer mode")
+		}
 	}
 
 	if o.TrailingBlankLines < 0 {
@@ -144,6 +187,10 @@ func (o *Output) Validate() error {
 
 func (o Output) ShouldCreateDirs() bool {
 	return boolDefault(o.CreateDirs, true)
+}
+
+func (o Output) ShouldKeepSpoolFiles() bool {
+	return boolDefault(o.KeepSpoolFiles, false)
 }
 
 func (c *Config) setDefaults() {

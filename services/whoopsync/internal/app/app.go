@@ -141,6 +141,12 @@ func (a *App) Run(ctx context.Context) error {
 		}
 		return a.worker.RunInterval(ctx)
 
+	case "wake_watch":
+		if a.worker == nil {
+			return fmt.Errorf("whoopsync app: worker is nil")
+		}
+		return a.worker.RunWakeWatch(ctx)
+
 	default:
 		return fmt.Errorf("whoopsync app: unsupported mode %q", mode)
 	}

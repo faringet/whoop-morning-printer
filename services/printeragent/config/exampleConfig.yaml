@@ -1,67 +1,101 @@
-app_name: printeragent
+# printeragent
+#
+# Локальный агент печати для WHOOP Morning Printer.
+#
+# У меня он живёт на Mac mini рядом с физическим принтером.
+# Остальные сервисы будут жить на VPS.
+#
+# Flow:
+#   1. printeragent смотрит таблицу print_jobs.
+#   2. Забирает jobs со status=ready, not_before<=now и непустым payload_text.
+#   3. Печатает чек выбранным способом.
+#   4. Помечает job как printed или failed.
+#
+# Основные режимы:
+#
+# printeragent.mode:
+#   once
+#     Один раз забрать доступные ready jobs, напечатать их и завершиться.
+#     Для отладки  - самое оно.
+#
+#   interval
+#     Работать постоянно и проверять очередь каждые printeragent.interval.
+#     Это основной режим прода.
+#
+# output.mode:
+#   file
+#     Сохранить чек в .txt файл.
+#     Режим для локальной отладки без принтера.
+#
+#   stdout
+#     Вывести чек в консоль.
+#     Удобно быстро посмотреть payload, база так сказать.
+#
+#   printer
+#     Физически напечатать чек через локальный принтер.
+#     На macOS использую CUPS/lp:
+#       lp -d <printer_name> -o cpi=<cpi> -o lpi=<lpi> <file>
+#
+# Для Star SP712 методом проб и ошибок подобрал:
+#   receipt.width: 36 в receiptworker
+#   output.cpi: 16
+#   output.lpi: 8
+#   raw-режим не используем - херня получается
 
+app_name: printeragent
 env: dev
 
 logger:
   level: info
   json: true
+  file_enabled: true
+  file_path: "./logs/printeragent.log"
 
 runtime:
-  # Сколько времени даём сервису на graceful shutdown.
   shutdown_timeout: 15s
 
 storage:
   postgres:
-    dsn: ""
+    dsn: "postgres://whoop:whoop@localhost:5432/whoop_morning_printer?sslmode=disable"
     max_open_conns: 10
     max_idle_conns: 5
     conn_max_lifetime: 30m
     conn_max_idle_time: 5m
 
 printeragent:
-  # Режим работы.
-  #
-  # once
-  #
-  # interval
-  mode: once
+  mode: interval
 
   user_id: 1
 
-  # Как часто проверять ready jobs в режиме interval.
-  interval: 5s
-
-  # Сколько задач максимум брать за один тик.
-  poll_limit: 5
-
-  # ID воркера, который будет записываться в print_jobs.claimed_by.
+  interval: 5s #todo да дрочим БД, но в будущем прикручу sleep режим и уже будет прилично
+  poll_limit: 5 #todo убрать из конфига
   worker_id: ""
 
-  # На сколько времени job переводится в processing.
-  #
-  # Если printeragent упал, зависшая processing-задача
-  # сможет быть переиспользована после истечения claim_ttl.
+  # На сколько времени job переводится в processing. #todo убрать из конфига
   claim_ttl: 2m
 
-  # Искусственная пауза после каждой печати.
-  print_delay: 0s
+  # Для физического принтера лучше оставить небольшую задержку.
+  print_delay: 1s
 
 output:
-  # file:
-  #   сохранить чек в .txt файл.
-  #
-  # stdout:
-  #   вывести чек в stdout/logs.
-  #
-  # Позже добавим:
-  # raw_printer / windows_print.
-  mode: file
+  mode: printer
 
-  # Папка для .txt чеков в file mode.
+  # Используется только для mode=file.
   dir: "./out/receipts"
 
-  # Создавать папку output.dir, если её нет.
+  # Используется только для mode=printer.
+  printer_name: "Star_SP712_STR_001"
+  cpi: 16
+  lpi: 8
+
+  # куда скалыдываем чеки перед тем как их отправить на печать
+  spool_dir: "./out/print-spool"
+
+  # оставляем или нет .txt чеки после того как напечатали.
+  keep_spool_files: true
+
+  # Создавать output.dir / output.spool_dir, если папок нет.
   create_dirs: true
 
-  # Дополнительные пустые строки в конце.
-  trailing_blank_lines: 0
+  # Дополнительные пустые строки в конце чека.
+  trailing_blank_lines: 6

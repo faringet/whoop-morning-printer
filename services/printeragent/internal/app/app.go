@@ -53,6 +53,13 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		CreateDirs: cfg.Output.ShouldCreateDirs(),
 
 		TrailingBlankLines: cfg.Output.TrailingBlankLines,
+
+		PrinterName: cfg.Output.PrinterName,
+		CPI:         cfg.Output.CPI,
+		LPI:         cfg.Output.LPI,
+
+		SpoolDir:       cfg.Output.SpoolDir,
+		KeepSpoolFiles: cfg.Output.ShouldKeepSpoolFiles(),
 	})
 	if err != nil {
 		_ = st.Close()
@@ -79,6 +86,11 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		slog.String("worker_id", workerID),
 		slog.String("output_mode", cfg.Output.Mode),
 		slog.String("output_dir", cfg.Output.Dir),
+		slog.String("output_printer_name", cfg.Output.PrinterName),
+		slog.Int("output_cpi", cfg.Output.CPI),
+		slog.Int("output_lpi", cfg.Output.LPI),
+		slog.String("output_spool_dir", cfg.Output.SpoolDir),
+		slog.Bool("output_keep_spool_files", cfg.Output.ShouldKeepSpoolFiles()),
 	)
 
 	return &App{
@@ -134,10 +146,17 @@ func (a *App) Run(ctx context.Context) error {
 		slog.Int("poll_limit", a.cfg.PrinterAgent.PollLimit),
 		slog.Duration("claim_ttl", a.cfg.PrinterAgent.ClaimTTL),
 		slog.Duration("print_delay", a.cfg.PrinterAgent.PrintDelay),
+
 		slog.String("output_mode", a.cfg.Output.Mode),
 		slog.String("output_dir", a.cfg.Output.Dir),
 		slog.Bool("output_create_dirs", a.cfg.Output.ShouldCreateDirs()),
 		slog.Int("trailing_blank_lines", a.cfg.Output.TrailingBlankLines),
+
+		slog.String("output_printer_name", a.cfg.Output.PrinterName),
+		slog.Int("output_cpi", a.cfg.Output.CPI),
+		slog.Int("output_lpi", a.cfg.Output.LPI),
+		slog.String("output_spool_dir", a.cfg.Output.SpoolDir),
+		slog.Bool("output_keep_spool_files", a.cfg.Output.ShouldKeepSpoolFiles()),
 	)
 
 	a.log.Info("postgres storage configured",

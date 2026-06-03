@@ -117,8 +117,13 @@ func (c *WhoopSync) setDefaults() {
 	c.AuthorizationCode = strings.TrimSpace(c.AuthorizationCode)
 
 	if c.Interval <= 0 {
-		c.Interval = 30 * time.Minute
+		if c.Mode == "wake_watch" {
+			c.Interval = 2 * time.Minute
+		} else {
+			c.Interval = 30 * time.Minute
+		}
 	}
+
 	if c.StartupTimeout <= 0 {
 		c.StartupTimeout = 60 * time.Second
 	}
@@ -139,9 +144,9 @@ func (c *WhoopSync) Validate() error {
 	}
 
 	switch c.Mode {
-	case "oauth_url", "oauth_code", "once", "interval":
+	case "oauth_url", "oauth_code", "once", "interval", "wake_watch":
 	default:
-		return fmt.Errorf("mode must be one of [oauth_url, oauth_code, once, interval], got %q", c.Mode)
+		return fmt.Errorf("mode must be one of [oauth_url, oauth_code, once, interval, wake_watch], got %q", c.Mode)
 	}
 
 	if c.Mode != "oauth_url" && c.UserID <= 0 {

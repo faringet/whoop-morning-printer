@@ -15,6 +15,8 @@ type Store interface {
 
 	MarkPrintJobPrinted(ctx context.Context, input MarkPrintJobPrintedInput) (PrintJob, error)
 	MarkPrintJobFailed(ctx context.Context, input MarkPrintJobFailedInput) (PrintJob, error)
+
+	CompleteWakePlanIfPrinted(ctx context.Context, input CompleteWakePlanIfPrintedInput) (WakePlanCompletionResult, error)
 }
 
 type ClaimReadyPrintJobsInput struct {
@@ -42,6 +44,16 @@ type MarkPrintJobFailedInput struct {
 
 	ErrorMessage string
 	FailedAt     time.Time
+}
+
+type CompleteWakePlanIfPrintedInput struct {
+	WakePlanID int64
+}
+
+type WakePlanCompletionResult struct {
+	WakePlanID int64
+	Completed  bool
+	Status     string
 }
 
 type PrintJob struct {

@@ -188,6 +188,96 @@ func (s *PostgresStore) GetTokens(ctx context.Context, userID int64) (Tokens, er
 	return tokens, nil
 }
 
+func (s *PostgresStore) GetNearestActiveWakePlan(ctx context.Context, userID int64, now time.Time) (WakePlan, error) {
+	if userID <= 0 {
+		return WakePlan{}, fmt.Errorf("storage: user_id must be > 0")
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+
+	var plan WakePlan
+
+	var wakeReceiptJobID sql.NullInt64
+	var finalReportJobID sql.NullInt64
+	var fallbackJobID sql.NullInt64
+
+	err := s.db.QueryRowContext(ctx, `
+		SELECT
+			id,
+			user_id,
+			date,
+			wake_at,
+			prepare_at,
+			final_deadline_at,
+			status,
+			source,
+			wake_receipt_job_id,
+			final_report_job_id,
+			fallback_job_id,
+			created_at,
+			updated_at
+		FROM wake_plans
+		WHERE user_id = $1
+		  AND status NOT IN ('done', 'cancelled', 'failed')
+		  AND final_deadline_at >= $2
+		ORDER BY wake_at ASC, id ASC
+		LIMIT 1
+	`, userID, now.UTC()).Scan(
+		&plan.ID,
+		&plan.UserID,
+		&plan.Date,
+		&plan.WakeAt,
+		&plan.PrepareAt,
+		&plan.FinalDeadlineAt,
+		&plan.Status,
+		&plan.Source,
+		&wakeReceiptJobID,
+		&finalReportJobID,
+		&fallbackJobID,
+		&plan.CreatedAt,
+		&plan.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return WakePlan{}, ErrNotFound
+	}
+	if err != nil {
+		return WakePlan{}, fmt.Errorf("storage: get nearest active wake plan: %w", err)
+	}
+
+	plan.WakeReceiptJobID = int64PtrFromNull(wakeReceiptJobID)
+	plan.FinalReportJobID = int64PtrFromNull(finalReportJobID)
+	plan.FallbackJobID = int64PtrFromNull(fallbackJobID)
+
+	return plan, nil
+}
+
+func (s *PostgresStore) GetDailyHealthSnapshotState(ctx context.Context, userID int64, date time.Time) (DataState, error) {
+	if userID <= 0 {
+		return "", fmt.Errorf("storage: user_id must be > 0")
+	}
+	if date.IsZero() {
+		return "", fmt.Errorf("storage: snapshot date is required")
+	}
+
+	var state DataState
+
+	err := s.db.QueryRowContext(ctx, `
+		SELECT data_state
+		FROM daily_health_snapshots
+		WHERE user_id = $1
+		  AND date = $2
+	`, userID, dateString(date)).Scan(&state)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("storage: get daily health snapshot state: %w", err)
+	}
+
+	return state, nil
+}
+
 func (s *PostgresStore) UpsertRawWHOOPObject(ctx context.Context, object RawWHOOPObject) error {
 	if object.UserID <= 0 {
 		return fmt.Errorf("storage: raw object user_id must be > 0")
@@ -396,6 +486,15 @@ func splitScopes(scopesCSV string) []string {
 
 func dateString(t time.Time) string {
 	return t.UTC().Format("2006-01-02")
+}
+
+func int64PtrFromNull(value sql.NullInt64) *int64 {
+	if !value.Valid {
+		return nil
+	}
+
+	v := value.Int64
+	return &v
 }
 
 func stringPtrValue(v *string) any {
