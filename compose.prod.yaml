@@ -1,0 +1,128 @@
+name: whoop-morning-printer
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: wmp-postgres
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - wmp
+
+  migrator:
+    image: ghcr.io/${GHCR_OWNER}/whoop-morning-printer/migrator:${IMAGE_TAG}
+    container_name: wmp-migrator
+    restart: "no"
+    env_file:
+      - ./.env
+    environment:
+      MIGRATOR_ENV: ${APP_ENV}
+      MIGRATOR_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - wmp
+
+  morningbot:
+    image: ghcr.io/${GHCR_OWNER}/whoop-morning-printer/morningbot:${IMAGE_TAG}
+    container_name: wmp-morningbot
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      MORNINGBOT_ENV: ${APP_ENV}
+      MORNINGBOT_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      MORNINGBOT_TELEGRAM_BOT_TOKEN: ${MORNINGBOT_TELEGRAM_BOT_TOKEN}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - wmp
+
+  whoopsync:
+    image: ghcr.io/${GHCR_OWNER}/whoop-morning-printer/whoopsync:${IMAGE_TAG}
+    container_name: wmp-whoopsync
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      WHOOPSYNC_ENV: ${APP_ENV}
+      WHOOPSYNC_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      WHOOPSYNC_WHOOP_CLIENT_ID: ${WHOOPSYNC_WHOOP_CLIENT_ID}
+      WHOOPSYNC_WHOOP_CLIENT_SECRET: ${WHOOPSYNC_WHOOP_CLIENT_SECRET}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - wmp
+
+  coach:
+    image: ghcr.io/${GHCR_OWNER}/whoop-morning-printer/coach:${IMAGE_TAG}
+    container_name: wmp-coach
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      COACH_ENV: ${APP_ENV}
+      COACH_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      COACH_OLLAMA_BASE_URL: ${COACH_OLLAMA_BASE_URL}
+      COACH_OLLAMA_MODEL: ${COACH_OLLAMA_MODEL}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - wmp
+      - tbs-llm
+
+  receiptworker:
+    image: ghcr.io/${GHCR_OWNER}/whoop-morning-printer/receiptworker:${IMAGE_TAG}
+    container_name: wmp-receiptworker
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      RECEIPTWORKER_ENV: ${APP_ENV}
+      RECEIPTWORKER_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - wmp
+
+networks:
+  wmp:
+    driver: bridge
+##todo переписать и сделать красиво чтобы не зависить от олламы соседнего сервиса
+  tbs-llm:
+    external: true
+    name: telegram-bot-scraper_tbs
+
+volumes:
+  postgres_data:

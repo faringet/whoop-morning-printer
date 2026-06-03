@@ -1,0 +1,141 @@
+name: whoop-morning-printer
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: wmp-postgres
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - wmp
+
+  migrator:
+    build:
+      context: .
+      dockerfile: docker/go-service.Dockerfile
+      args:
+        SERVICE_CMD: ./cmd/migrator
+    container_name: wmp-migrator
+    restart: "no"
+    env_file:
+      - ./.env
+    environment:
+      MIGRATOR_ENV: ${APP_ENV}
+      MIGRATOR_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - wmp
+
+  morningbot:
+    build:
+      context: .
+      dockerfile: docker/go-service.Dockerfile
+      args:
+        SERVICE_CMD: ./services/morningbot/cmd/morningbot
+    container_name: wmp-morningbot
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      MORNINGBOT_ENV: ${APP_ENV}
+      MORNINGBOT_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      MORNINGBOT_TELEGRAM_BOT_TOKEN: ${MORNINGBOT_TELEGRAM_BOT_TOKEN}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - wmp
+
+  whoopsync:
+    build:
+      context: .
+      dockerfile: docker/go-service.Dockerfile
+      args:
+        SERVICE_CMD: ./services/whoopsync/cmd/whoopsync
+    container_name: wmp-whoopsync
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      WHOOPSYNC_ENV: ${APP_ENV}
+      WHOOPSYNC_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      WHOOPSYNC_WHOOP_CLIENT_ID: ${WHOOPSYNC_WHOOP_CLIENT_ID}
+      WHOOPSYNC_WHOOP_CLIENT_SECRET: ${WHOOPSYNC_WHOOP_CLIENT_SECRET}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - wmp
+
+  coach:
+    build:
+      context: .
+      dockerfile: docker/go-service.Dockerfile
+      args:
+        SERVICE_CMD: ./services/coach/cmd/coach
+    container_name: wmp-coach
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      COACH_ENV: ${APP_ENV}
+      COACH_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      COACH_OLLAMA_BASE_URL: ${COACH_OLLAMA_BASE_URL}
+      COACH_OLLAMA_MODEL: ${COACH_OLLAMA_MODEL}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - wmp
+
+  receiptworker:
+    build:
+      context: .
+      dockerfile: docker/go-service.Dockerfile
+      args:
+        SERVICE_CMD: ./services/receiptworker/cmd/receiptworker
+    container_name: wmp-receiptworker
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      RECEIPTWORKER_ENV: ${APP_ENV}
+      RECEIPTWORKER_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - wmp
+
+networks:
+  wmp:
+    driver: bridge
+
+volumes:
+  postgres_data:
