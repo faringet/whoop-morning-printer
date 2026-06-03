@@ -11,6 +11,7 @@ import (
 	"github.com/faringet/whoop-morning-printer/pkg/logger"
 	"github.com/faringet/whoop-morning-printer/services/printeragent/config"
 	"github.com/faringet/whoop-morning-printer/services/printeragent/internal/app"
+	"github.com/faringet/whoop-morning-printer/services/printeragent/internal/banner"
 )
 
 func main() {
@@ -23,6 +24,16 @@ func main() {
 		JSON:        cfg.Logger.JSON,
 		FileEnabled: cfg.Logger.FileEnabled,
 		FilePath:    cfg.Logger.FilePath,
+	})
+
+	banner.Print(os.Stdout, banner.Info{
+		Mode:        cfg.PrinterAgent.Mode,
+		OutputMode:  cfg.Output.Mode,
+		PrinterName: cfg.Output.PrinterName,
+		CPI:         cfg.Output.CPI,
+		LPI:         cfg.Output.LPI,
+		DatabaseDSN: cfg.Storage.Postgres.DSN,
+		LogFile:     logFilePath(cfg),
 	})
 
 	application, err := app.New(cfg, log)
@@ -43,6 +54,18 @@ func main() {
 		log.Error("app run failed", slog.Any("err", err))
 		os.Exit(1)
 	}
+}
+
+func logFilePath(cfg *config.Config) string {
+	if cfg == nil {
+		return ""
+	}
+
+	if !cfg.Logger.FileEnabled {
+		return ""
+	}
+
+	return cfg.Logger.FilePath
 }
 
 func isShutdownErr(err error) bool {
