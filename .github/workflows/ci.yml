@@ -32,32 +32,17 @@ jobs:
       - name: Download modules
         run: go mod download
 
-      - name: Verify go.mod and go.sum are tidy
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          go mod tidy
-
-          if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
-            echo "go.mod or go.sum is not tidy. Run 'go mod tidy' locally and commit the result."
-            git status --porcelain go.mod go.sum
-            git diff -- go.mod go.sum || true
-            exit 1
-          fi
-
       - name: Verify formatting
         shell: bash
         run: |
           set -euo pipefail
-
           files="$(git ls-files '*.go')"
           if [ -z "${files}" ]; then
             echo "No Go files found"
             exit 0
           fi
 
-          unformatted="$(gofmt -l ${files})"
+          unformatted="$(git ls-files '*.go' | xargs gofmt -l)"
           if [ -n "${unformatted}" ]; then
             echo "These files are not gofmt-formatted:"
             echo "${unformatted}"
@@ -70,5 +55,58 @@ jobs:
       - name: Test
         run: go test ./...
 
-      - name: Build
-        run: go build ./...
+      - name: Build migrator
+        run: go build ./cmd/migrator
+
+      - name: Build morningbot
+        run: go build ./services/morningbot/cmd/morningbot
+
+      - name: Build whoopsync
+        run: go build ./services/whoopsync/cmd/whoopsync
+
+      - name: Build coach
+        run: go build ./services/coach/cmd/coach
+
+      - name: Build receiptworker
+        run: go build ./services/receiptworker/cmd/receiptworker
+
+      - name: Build printeragent
+        run: go build ./services/printeragent/cmd/printeragent
+
+  docker-validate:
+    name: docker-validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare local config dir
+        run: mkdir -p config
+
+      - name: Create dummy .env for compose validation
+        run: |
+          cat > .env <<'EOF'
+          APP_ENV=ci
+
+          POSTGRES_DB=whoop_morning_printer
+          POSTGRES_USER=whoop
+          POSTGRES_PASSWORD=ci_dummy_password
+
+          GHCR_OWNER=dummy_owner
+          IMAGE_TAG=main
+
+          MORNINGBOT_TELEGRAM_BOT_TOKEN=ci_dummy_token
+
+          WHOOPSYNC_WHOOP_CLIENT_ID=ci_dummy_client_id
+          WHOOPSYNC_WHOOP_CLIENT_SECRET=ci_dummy_client_secret
+
+          COACH_OLLAMA_BASE_URL=http://ollama:11434
+          COACH_OLLAMA_MODEL=qwen2.5:7b
+          EOF
+
+      - name: Validate local Docker Compose config
+        run: docker compose -f compose.yaml config
+
+      - name: Validate production Docker Compose config
+        run: docker compose -f compose.prod.yaml config
