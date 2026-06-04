@@ -57,11 +57,17 @@ jobs:
         with:
           go-version: "1.20.14"
           cache: true
-          cache-dependency-path: legacy/printeragent/go.mod
+          cache-dependency-path: |
+            legacy/printeragent/go.mod
+            legacy/printeragent/go.sum
 
       - name: Download modules
         working-directory: legacy/printeragent
         run: go mod download
+
+      - name: Test legacy printeragent
+        working-directory: legacy/printeragent
+        run: go test ./...
 
       - name: Build legacy printeragent for Intel macOS
         working-directory: legacy/printeragent
@@ -70,7 +76,10 @@ jobs:
           GOOS: darwin
           GOARCH: amd64
           GOAMD64: v1
-        run: mkdir -p ../../dist/printeragent-legacy-darwin-amd64 && go build -trimpath -ldflags="-s -w -X main.version=${{ steps.version.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o ../../dist/printeragent-legacy-darwin-amd64/printeragent ./main.go
+        run: mkdir -p ../../dist/printeragent-legacy-darwin-amd64 && go build -trimpath -ldflags="-s -w -X main.version=${{ steps.version.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o ../../dist/printeragent-legacy-darwin-amd64/printeragent ./cmd/printeragent
+
+      - name: Add example config
+        run: cp legacy/printeragent/config/exampleConfig.yaml dist/printeragent-legacy-darwin-amd64/config.example.yaml
 
       - name: Add README
         shell: bash
@@ -82,17 +91,30 @@ jobs:
             macOS Intel / darwin-amd64
             Built with Go 1.20 for old macOS compatibility.
 
-          Current release purpose:
-            Smoke check only.
+          Role:
+            Native Mac mini edge agent connected to the physical Star SP712 printer.
 
-          This binary only verifies that the legacy printeragent can start on an old Intel Mac mini.
-          It does not connect to PostgreSQL and does not print yet.
+          Important:
+            The release archive includes config.example.yaml only as a template.
+            The real runtime config must be created on the Mac mini as:
 
-          Run:
+              /opt/whoop-morning-printer/config/config.local.yaml
 
-            chmod +x printeragent
-            ./printeragent
-          
+
+          Install:
+
+            sudo mkdir -p /opt/whoop-morning-printer/bin
+            sudo mkdir -p /opt/whoop-morning-printer/config
+
+            sudo cp printeragent /opt/whoop-morning-printer/bin/printeragent-legacy
+            sudo chmod +x /opt/whoop-morning-printer/bin/printeragent-legacy
+
+            sudo cp config.example.yaml /opt/whoop-morning-printer/config/config.local.yaml
+
+    
+          Run example:
+            cd /opt/whoop-morning-printer
+            ./bin/printeragent-legacy
           EOF
 
       - name: Package release archive
@@ -108,4 +130,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: gh release create "${VERSION}" dist/printeragent-legacy-darwin-amd64.tar.gz dist/printeragent-legacy-darwin-amd64.sha256 --title "${VERSION}" --notes "Legacy printeragent smoke build for old Intel macOS / darwin-amd64"
+        run: gh release create "${VERSION}" dist/printeragent-legacy-darwin-amd64.tar.gz dist/printeragent-legacy-darwin-amd64.sha256 --title "${VERSION}" --notes "Legacy printeragent release for old Intel macOS / darwin-amd64"
