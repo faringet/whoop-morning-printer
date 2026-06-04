@@ -1,0 +1,121 @@
+name: Printeragent Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: printeragent-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-printeragent:
+    name: release-printeragent-darwin-amd64
+    runs-on: ubuntu-latest
+
+    env:
+      APP_NAME: printeragent
+      TARGET_OS: darwin
+      TARGET_ARCH: amd64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME}"
+          fi
+          if [[ ! "${VERSION}" =~ ^v[0-9]+(\.[0-9]+){1,2}([-+][A-Za-z0-9._-]+)?$ ]]; then
+            echo "Invalid version: ${VERSION}"
+            echo "Expected something like v0.1.0"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Build printeragent for Intel macOS
+        env:
+          CGO_ENABLED: "0"
+          GOOS: darwin
+          GOARCH: amd64
+        run: mkdir -p dist/printeragent-darwin-amd64 && go build -trimpath -ldflags="-s -w" -o dist/printeragent-darwin-amd64/printeragent ./services/printeragent/cmd/printeragent
+
+      - name: Add example config
+        run: cp services/printeragent/config/exampleConfig.yaml dist/printeragent-darwin-amd64/config.example.yaml
+
+      - name: Add README
+        shell: bash
+        run: |
+          cat > dist/printeragent-darwin-amd64/README.txt <<'EOF'
+          WHOOP Morning Printer - printeragent
+
+          Target:
+            macOS Intel / darwin-amd64
+
+          Role:
+            Native Mac mini edge agent connected to the physical Star SP712 printer.
+
+           Important:
+            The release archive includes config.example.yaml only as a template.
+            The real runtime config must be created on the Mac mini as:
+
+              /opt/whoop-morning-printer/config/config.local.yaml
+
+
+          Install:
+
+            sudo mkdir -p /opt/whoop-morning-printer/bin
+            sudo mkdir -p /opt/whoop-morning-printer/config
+
+            sudo cp printeragent /opt/whoop-morning-printer/bin/printeragent
+            sudo chmod +x /opt/whoop-morning-printer/bin/printeragent
+
+            sudo cp config.example.yaml /opt/whoop-morning-printer/config/config.local.yaml
+
+
+          Run example:
+            cd /opt/whoop-morning-printer
+            ./bin/printeragent
+          EOF
+
+      - name: Package release archive
+        shell: bash
+        run: cd dist && tar -czf printeragent-darwin-amd64.tar.gz printeragent-darwin-amd64
+
+      - name: Calculate checksum
+        shell: bash
+        run: cd dist && shasum -a 256 printeragent-darwin-amd64.tar.gz > printeragent-darwin-amd64.sha256
+
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "${VERSION}" dist/printeragent-darwin-amd64.tar.gz dist/printeragent-darwin-amd64.sha256 --title "${VERSION}" --notes "printeragent release for Intel macOS / darwin-amd64"
