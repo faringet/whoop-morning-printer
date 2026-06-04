@@ -1,0 +1,111 @@
+name: Printeragent Legacy Release
+
+on:
+  push:
+    tags:
+      - "v*-legacy.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Legacy release version, for example v0.1.0-legacy.1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: printeragent-legacy-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-printeragent-legacy:
+    name: release-printeragent-legacy-darwin-amd64
+    runs-on: ubuntu-latest
+
+    env:
+      TARGET_OS: darwin
+      TARGET_ARCH: amd64
+      GOAMD64: v1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME}"
+          fi
+
+          if [[ ! "${VERSION}" =~ ^v[0-9]+(\.[0-9]+){1,2}-legacy\.[0-9]+$ ]]; then
+            echo "Invalid version: ${VERSION}"
+            echo "Expected something like v0.1.0-legacy.1"
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Setup Go 1.20
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.20.14"
+          cache: true
+          cache-dependency-path: legacy/printeragent/go.mod
+
+      - name: Download modules
+        working-directory: legacy/printeragent
+        run: go mod download
+
+      - name: Build legacy printeragent for Intel macOS
+        working-directory: legacy/printeragent
+        env:
+          CGO_ENABLED: "0"
+          GOOS: darwin
+          GOARCH: amd64
+          GOAMD64: v1
+        run: mkdir -p ../../dist/printeragent-legacy-darwin-amd64 && go build -trimpath -ldflags="-s -w -X main.version=${{ steps.version.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o ../../dist/printeragent-legacy-darwin-amd64/printeragent ./main.go
+
+      - name: Add README
+        shell: bash
+        run: |
+          cat > dist/printeragent-legacy-darwin-amd64/README.txt <<'EOF'
+          WHOOP Morning Printer - legacy printeragent
+
+          Target:
+            macOS Intel / darwin-amd64
+            Built with Go 1.20 for old macOS compatibility.
+
+          Current release purpose:
+            Smoke check only.
+
+          This binary only verifies that the legacy printeragent can start on an old Intel Mac mini.
+          It does not connect to PostgreSQL and does not print yet.
+
+          Run:
+
+            chmod +x printeragent
+            ./printeragent
+          
+          EOF
+
+      - name: Package release archive
+        shell: bash
+        run: cd dist && tar -czf printeragent-legacy-darwin-amd64.tar.gz printeragent-legacy-darwin-amd64
+
+      - name: Calculate checksum
+        shell: bash
+        run: cd dist && shasum -a 256 printeragent-legacy-darwin-amd64.tar.gz > printeragent-legacy-darwin-amd64.sha256
+
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: gh release create "${VERSION}" dist/printeragent-legacy-darwin-amd64.tar.gz dist/printeragent-legacy-darwin-amd64.sha256 --title "${VERSION}" --notes "Legacy printeragent smoke build for old Intel macOS / darwin-amd64"
