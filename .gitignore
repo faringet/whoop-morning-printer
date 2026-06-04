@@ -20,6 +20,9 @@
 /services/printeragent/config/config.yaml
 /services/printeragent/config/config.local.yaml
 
+legacy/printeragent/config/config.yaml
+legacy/printeragent/config/config.local.yaml
+
 # local migrator configs
 /cmd/migrator/config.yaml
 /cmd/migrator/config.local.yaml
