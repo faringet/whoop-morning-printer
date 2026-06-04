@@ -63,7 +63,7 @@ jobs:
 
       - name: Download modules
         working-directory: legacy/printeragent
-        run: go mod download
+        run: go mod download all
 
       - name: Test legacy printeragent
         working-directory: legacy/printeragent
