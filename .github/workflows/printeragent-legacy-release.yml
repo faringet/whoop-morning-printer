@@ -92,7 +92,25 @@ jobs:
             Built with Go 1.20 for old macOS compatibility.
 
           Role:
-            Native Mac mini edge agent connected to the physical Star SP712 printer.
+            printeragent-legacy is a native Mac mini edge agent.
+            It reads ready print_jobs from PostgreSQL and prints them through macOS CUPS/lp
+            to the physical Star SP712 printer.
+
+          Recommended directory layout on Mac mini:
+
+            /opt/whoop-morning-printer/
+              bin/
+                printeragent-legacy
+
+              config/
+                config.local.yaml
+
+              logs/
+                printeragent.log
+
+              out/
+                print-spool/
+                receipts/
 
           Important:
             The release archive includes config.example.yaml only as a template.
@@ -100,21 +118,55 @@ jobs:
 
               /opt/whoop-morning-printer/config/config.local.yaml
 
+            Do not put real database passwords or secrets into GitHub releases.
 
           Install:
 
             sudo mkdir -p /opt/whoop-morning-printer/bin
             sudo mkdir -p /opt/whoop-morning-printer/config
+            sudo mkdir -p /opt/whoop-morning-printer/logs
+            sudo mkdir -p /opt/whoop-morning-printer/out/print-spool
+            sudo mkdir -p /opt/whoop-morning-printer/out/receipts
 
             sudo cp printeragent /opt/whoop-morning-printer/bin/printeragent-legacy
             sudo chmod +x /opt/whoop-morning-printer/bin/printeragent-legacy
 
             sudo cp config.example.yaml /opt/whoop-morning-printer/config/config.local.yaml
 
-    
-          Run example:
+          Configure:
+
+            Edit the runtime config:
+
+              sudo nano /opt/whoop-morning-printer/config/config.local.yaml
+
+            Minimum things to check:
+              - storage.postgres.dsn points to the VPS PostgreSQL through SSH tunnel / VPN
+              - output.mode is printer
+              - output.printer_name matches the macOS printer queue name from: lpstat -p -d
+              - output.cpi and output.lpi match the tested Star SP712 settings
+              - logger.file_enabled is true
+              - logger.file_path is ./logs/printeragent.log
+
+          SSH tunnel example:
+
+            ssh -N -L 15434:127.0.0.1:15434 root@78.17.3.219
+
+          Run manually:
+
             cd /opt/whoop-morning-printer
             ./bin/printeragent-legacy
+
+          Logs:
+
+            tail -f /opt/whoop-morning-printer/logs/printeragent.log
+
+          Notes:
+            Run printeragent-legacy from /opt/whoop-morning-printer.
+            The relative paths in config.local.yaml are resolved from the current working directory.
+            For example:
+              ./logs/printeragent.log
+              ./out/print-spool
+              ./out/receipts
           EOF
 
       - name: Package release archive
