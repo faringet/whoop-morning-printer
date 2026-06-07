@@ -2,14 +2,10 @@ package app
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
-	"time"
-
-	_ "github.com/lib/pq"
 
 	"github.com/faringet/whoop-morning-printer/legacy/printeragent/internal/config"
 	"github.com/faringet/whoop-morning-printer/legacy/printeragent/internal/logger"
@@ -34,14 +30,14 @@ func New(cfg *config.Config, log *logger.Logger) (*App, error) {
 		return nil, errors.New("printeragent legacy app: logger is nil")
 	}
 
-	st, err := openStore(cfg, log)
-	if err != nil {
-		return nil, fmt.Errorf("open store: %w", err)
-	}
-
 	workerID := strings.TrimSpace(cfg.PrinterAgent.WorkerID)
 	if workerID == "" {
 		workerID = defaultWorkerID()
+	}
+
+	st, err := openStore(cfg, log, workerID)
+	if err != nil {
+		return nil, fmt.Errorf("open store: %w", err)
 	}
 
 	printer, err := output.New(log, output.Config{
@@ -82,6 +78,8 @@ func New(cfg *config.Config, log *logger.Logger) (*App, error) {
 
 	log.Info("printeragent legacy initialized",
 		"worker_id", workerID,
+		"storage", "http",
+		"printergateway_base_url", cfg.Storage.HTTP.BaseURL,
 		"output_mode", cfg.Output.Mode,
 		"output_dir", cfg.Output.Dir,
 		"output_printer_name", cfg.Output.PrinterName,
@@ -99,61 +97,83 @@ func New(cfg *config.Config, log *logger.Logger) (*App, error) {
 	}, nil
 }
 
-func openStore(cfg *config.Config, log *logger.Logger) (storage.Store, error) {
+func openStore(cfg *config.Config, log *logger.Logger, workerID string) (storage.Store, error) {
 	if cfg == nil {
 		return nil, errors.New("printeragent legacy app: config is nil")
 	}
 
-	db, err := sql.Open("postgres", cfg.Storage.Postgres.DSN)
+	token, err := loadPrinterGatewayToken(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("open postgres db: %w", err)
+		return nil, fmt.Errorf("load printergateway token: %w", err)
 	}
 
-	db.SetMaxOpenConns(cfg.Storage.Postgres.MaxOpenConns)
-	db.SetMaxIdleConns(cfg.Storage.Postgres.MaxIdleConns)
-	db.SetConnMaxLifetime(cfg.Storage.Postgres.ConnMaxLifetime.Duration)
-	db.SetConnMaxIdleTime(cfg.Storage.Postgres.ConnMaxIdleTime.Duration)
+	st, err := storage.NewHTTP(storage.HTTPConfig{
+		BaseURL: cfg.Storage.HTTP.BaseURL,
+		Token:   token,
+		Timeout: cfg.Storage.HTTP.Timeout.Duration,
 
-	pingCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := db.PingContext(pingCtx); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("ping postgres db: %w", err)
+		UserID:   cfg.PrinterAgent.UserID,
+		WorkerID: workerID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create printergateway storage: %w", err)
 	}
 
 	if log != nil {
-		var now time.Time
-		var currentUser string
-		var currentDatabase string
-
-		err := db.QueryRowContext(pingCtx, `
-			SELECT
-				NOW(),
-				CURRENT_USER,
-				CURRENT_DATABASE()
-		`).Scan(&now, &currentUser, &currentDatabase)
-		if err != nil {
-			_ = db.Close()
-			return nil, fmt.Errorf("postgres health query: %w", err)
-		}
-
-		log.Info("postgres connected",
-			"current_user", currentUser,
-			"current_database", currentDatabase,
-			"db_time_utc", now.UTC().Format(time.RFC3339),
-			"max_open_conns", cfg.Storage.Postgres.MaxOpenConns,
-			"max_idle_conns", cfg.Storage.Postgres.MaxIdleConns,
+		log.Info("printergateway storage initialized",
+			"base_url", cfg.Storage.HTTP.BaseURL,
+			"timeout", cfg.Storage.HTTP.Timeout.Duration,
+			"user_id", cfg.PrinterAgent.UserID,
+			"worker_id", workerID,
+			"token_source", tokenSourceLabel(cfg),
 		)
 	}
 
-	st, err := storage.NewPostgres(db)
-	if err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("create postgres storage: %w", err)
+	return st, nil
+}
+
+func loadPrinterGatewayToken(cfg *config.Config) (string, error) {
+	if cfg == nil {
+		return "", errors.New("config is nil")
 	}
 
-	return st, nil
+	token := strings.TrimSpace(cfg.Storage.HTTP.Token)
+	if token != "" {
+		return token, nil
+	}
+
+	tokenFile := strings.TrimSpace(cfg.Storage.HTTP.TokenFile)
+	if tokenFile == "" {
+		return "", errors.New("storage.http.token or storage.http.token_file is required")
+	}
+
+	data, err := os.ReadFile(tokenFile)
+	if err != nil {
+		return "", fmt.Errorf("read token file %q: %w", tokenFile, err)
+	}
+
+	token = strings.TrimSpace(string(data))
+	if token == "" {
+		return "", fmt.Errorf("token file %q is empty", tokenFile)
+	}
+
+	return token, nil
+}
+
+func tokenSourceLabel(cfg *config.Config) string {
+	if cfg == nil {
+		return "-"
+	}
+
+	if strings.TrimSpace(cfg.Storage.HTTP.Token) != "" {
+		return "config"
+	}
+
+	if strings.TrimSpace(cfg.Storage.HTTP.TokenFile) != "" {
+		return "token_file"
+	}
+
+	return "-"
 }
 
 func (a *App) Run(ctx context.Context) error {
@@ -176,6 +196,8 @@ func (a *App) Run(ctx context.Context) error {
 		"poll_limit", a.cfg.PrinterAgent.PollLimit,
 		"claim_ttl", a.cfg.PrinterAgent.ClaimTTL.Duration,
 		"print_delay", a.cfg.PrinterAgent.PrintDelay.Duration,
+		"storage", "http",
+		"printergateway_base_url", a.cfg.Storage.HTTP.BaseURL,
 		"output_mode", a.cfg.Output.Mode,
 		"output_dir", a.cfg.Output.Dir,
 		"output_create_dirs", a.cfg.Output.ShouldCreateDirs(),

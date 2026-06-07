@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -56,16 +57,17 @@ type Runtime struct {
 }
 
 type Storage struct {
-	Postgres PostgresStorage `yaml:"postgres"`
+	HTTP HTTPStorage `yaml:"http"`
 }
 
-type PostgresStorage struct {
-	DSN string `yaml:"dsn"`
+type HTTPStorage struct {
+	BaseURL string `yaml:"base_url"`
 
-	MaxOpenConns    int      `yaml:"max_open_conns"`
-	MaxIdleConns    int      `yaml:"max_idle_conns"`
-	ConnMaxLifetime Duration `yaml:"conn_max_lifetime"`
-	ConnMaxIdleTime Duration `yaml:"conn_max_idle_time"`
+	Token string `yaml:"token"`
+
+	TokenFile string `yaml:"token_file"`
+
+	Timeout Duration `yaml:"timeout"`
 }
 
 type PrinterAgent struct {
@@ -184,19 +186,12 @@ func (c *Config) setDefaults() {
 		c.Runtime.ShutdownTimeout.Duration = 15 * time.Second
 	}
 
-	c.Storage.Postgres.DSN = strings.TrimSpace(c.Storage.Postgres.DSN)
+	c.Storage.HTTP.BaseURL = strings.TrimRight(strings.TrimSpace(c.Storage.HTTP.BaseURL), "/")
+	c.Storage.HTTP.Token = strings.TrimSpace(c.Storage.HTTP.Token)
+	c.Storage.HTTP.TokenFile = strings.TrimSpace(c.Storage.HTTP.TokenFile)
 
-	if c.Storage.Postgres.MaxOpenConns <= 0 {
-		c.Storage.Postgres.MaxOpenConns = 5
-	}
-	if c.Storage.Postgres.MaxIdleConns < 0 {
-		c.Storage.Postgres.MaxIdleConns = 0
-	}
-	if c.Storage.Postgres.ConnMaxLifetime.Duration < 0 {
-		c.Storage.Postgres.ConnMaxLifetime.Duration = 0
-	}
-	if c.Storage.Postgres.ConnMaxIdleTime.Duration < 0 {
-		c.Storage.Postgres.ConnMaxIdleTime.Duration = 0
+	if c.Storage.HTTP.Timeout.Duration <= 0 {
+		c.Storage.HTTP.Timeout.Duration = 10 * time.Second
 	}
 
 	c.PrinterAgent.Mode = strings.ToLower(strings.TrimSpace(c.PrinterAgent.Mode))
@@ -263,8 +258,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("logger.level must be one of [debug, info, warn, warning, error], got %q", c.Logger.Level)
 	}
 
-	if c.Storage.Postgres.DSN == "" {
-		return errors.New("storage.postgres.dsn is required")
+	if err := validateHTTPStorage(c.Storage.HTTP); err != nil {
+		return fmt.Errorf("storage.http: %w", err)
 	}
 
 	switch c.PrinterAgent.Mode {
@@ -323,6 +318,37 @@ func (c *Config) Validate() error {
 
 	if c.Output.TrailingBlankLines < 0 {
 		return errors.New("output.trailing_blank_lines must be >= 0")
+	}
+
+	return nil
+}
+
+func validateHTTPStorage(cfg HTTPStorage) error {
+	if strings.TrimSpace(cfg.BaseURL) == "" {
+		return errors.New("base_url is required")
+	}
+
+	parsed, err := url.Parse(cfg.BaseURL)
+	if err != nil {
+		return fmt.Errorf("base_url is invalid: %w", err)
+	}
+
+	switch strings.ToLower(parsed.Scheme) {
+	case "http", "https":
+	default:
+		return fmt.Errorf("base_url scheme must be http or https, got %q", parsed.Scheme)
+	}
+
+	if strings.TrimSpace(parsed.Host) == "" {
+		return errors.New("base_url host is required")
+	}
+
+	if strings.TrimSpace(cfg.Token) == "" && strings.TrimSpace(cfg.TokenFile) == "" {
+		return errors.New("token or token_file is required")
+	}
+
+	if cfg.Timeout.Duration <= 0 {
+		return errors.New("timeout must be > 0")
 	}
 
 	return nil

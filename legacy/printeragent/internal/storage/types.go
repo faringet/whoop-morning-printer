@@ -52,35 +52,35 @@ type CompleteWakePlanIfPrintedInput struct {
 }
 
 type WakePlanCompletionResult struct {
-	WakePlanID int64
-	Completed  bool
-	Status     string
+	WakePlanID int64  `json:"wake_plan_id"`
+	Completed  bool   `json:"completed"`
+	Status     string `json:"status"`
 }
 
 type PrintJob struct {
-	ID     int64
-	UserID int64
+	ID     int64 `json:"id"`
+	UserID int64 `json:"user_id"`
 
-	WakePlanID *int64
+	WakePlanID *int64 `json:"wake_plan_id,omitempty"`
 
-	Type   PrintJobType
-	Status PrintJobStatus
+	Type   PrintJobType   `json:"type"`
+	Status PrintJobStatus `json:"status"`
 
-	NotBefore time.Time
+	NotBefore time.Time `json:"not_before"`
 
-	PayloadType string
-	PayloadText string
+	PayloadType string `json:"payload_type"`
+	PayloadText string `json:"payload_text"`
 
-	ClaimedBy       *string
-	ProcessingUntil *time.Time
+	ClaimedBy       *string    `json:"claimed_by,omitempty"`
+	ProcessingUntil *time.Time `json:"processing_until,omitempty"`
 
-	PrintedAt *time.Time
-	FailedAt  *time.Time
+	PrintedAt *time.Time `json:"printed_at,omitempty"`
+	FailedAt  *time.Time `json:"failed_at,omitempty"`
 
-	ErrorMessage *string
+	ErrorMessage *string `json:"error_message,omitempty"`
 
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func (j PrintJob) IsClaimedBy(workerID string) bool {
