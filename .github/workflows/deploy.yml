@@ -50,14 +50,16 @@ jobs:
           echo "${{ secrets.PROD_GHCR_READ_TOKEN }}" | docker login ghcr.io -u "${{ secrets.PROD_GHCR_USERNAME }}" --password-stdin
           docker network inspect telegram-bot-scraper_tbs >/dev/null
           docker compose -f compose.prod.yaml config >/dev/null
-          docker compose -f compose.prod.yaml pull migrator morningbot whoopsync coach receiptworker
+          docker compose -f compose.prod.yaml pull migrator morningbot whoopsync coach receiptworker printergateway
           docker compose -f compose.prod.yaml up -d postgres
           docker rm -f wmp-migrator >/dev/null 2>&1 || true
-          docker compose -f compose.prod.yaml up -d --force-recreate --remove-orphans morningbot whoopsync coach receiptworker
+          docker compose -f compose.prod.yaml up -d migrator
+          docker compose -f compose.prod.yaml up -d --force-recreate --remove-orphans morningbot whoopsync coach receiptworker printergateway
           docker compose -f compose.prod.yaml ps
           docker logs wmp-migrator
           docker inspect wmp-morningbot --format '{{.Config.Image}}'
           docker inspect wmp-whoopsync --format '{{.Config.Image}}'
           docker inspect wmp-coach --format '{{.Config.Image}}'
           docker inspect wmp-receiptworker --format '{{.Config.Image}}'
+          docker inspect wmp-printergateway --format '{{.Config.Image}}'
           EOF

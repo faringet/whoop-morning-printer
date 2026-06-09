@@ -20,6 +20,9 @@
 /services/printeragent/config/config.yaml
 /services/printeragent/config/config.local.yaml
 
+/services/printergateway/config/config.yaml
+/services/printergateway/config/config.local.yaml
+
 legacy/printeragent/config/config.yaml
 legacy/printeragent/config/config.local.yaml
 

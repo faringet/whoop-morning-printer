@@ -70,6 +70,9 @@ jobs:
       - name: Build receiptworker
         run: go build ./services/receiptworker/cmd/receiptworker
 
+      - name: Build printergateway
+        run: go build ./services/printergateway/cmd/printergateway
+
       - name: Build printeragent
         run: go build ./services/printeragent/cmd/printeragent
 
@@ -103,6 +106,10 @@ jobs:
 
           COACH_OLLAMA_BASE_URL=http://ollama:11434
           COACH_OLLAMA_MODEL=qwen2.5:7b
+
+          PRINTERGATEWAY_HTTP_ADDR=:8088
+          PRINTERGATEWAY_HOST_PORT=18088
+          PRINTERGATEWAY_AUTH_TOKEN=ci_dummy_printergateway_token
           EOF
 
       - name: Validate local Docker Compose config

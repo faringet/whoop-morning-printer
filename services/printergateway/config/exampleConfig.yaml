@@ -1,0 +1,40 @@
+app_name: printergateway
+
+env: dev
+
+logger:
+  level: info
+  json: true
+
+runtime:
+  shutdown_timeout: 15s
+
+storage:
+  postgres:
+    dsn: ""
+    max_open_conns: 8
+    max_idle_conns: 4
+    conn_max_lifetime: 30m
+    conn_max_idle_time: 5m
+
+printergateway:
+  http_addr: ":8088"
+
+  # Bearer token, который должен прислать legacy printeragent:
+  auth_token: ""
+
+  # Альтернатива auth_token
+  # Если заданы и auth_token, и auth_token_file,
+  # auth_token имеет приоритет.
+  auth_token_file: ""
+
+
+  startup_timeout: 60s
+
+  ping_interval: 2s
+
+  # HTTP server timeouts.
+  read_header_timeout: 5s
+  read_timeout: 15s
+  write_timeout: 15s
+  idle_timeout: 60s
