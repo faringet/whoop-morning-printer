@@ -59,6 +59,7 @@ func NewServer(log *slog.Logger, store storage.Store, authToken string) (*Server
 	v1.POST("/print-jobs/:id/printed", s.markPrinted)
 	v1.POST("/print-jobs/:id/failed", s.markFailed)
 	v1.POST("/wake-plans/:id/complete-if-printed", s.completeWakePlan)
+	v1.POST("/wake-schedule/next", s.nextWakePlan)
 
 	s.router = r
 
@@ -237,6 +238,56 @@ func (s *Server) completeWakePlan(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, NewWakePlanCompletionResponse(result))
+}
+
+func (s *Server) nextWakePlan(c *gin.Context) {
+	var req GetNextWakePlanRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, http.StatusBadRequest, err)
+		return
+	}
+
+	input, err := req.ToStorageInput()
+	if err != nil {
+		fail(c, http.StatusBadRequest, err)
+		return
+	}
+
+	plan, err := s.store.GetNextWakePlan(c.Request.Context(), input)
+	if err != nil {
+		s.log.Error("get next wake plan failed",
+			slog.Int64("user_id", input.UserID),
+			slog.Time("now", input.Now),
+			slog.Duration("lookahead", input.Lookahead),
+			slog.Any("err", err),
+		)
+		storageFail(c, err)
+		return
+	}
+
+	if plan == nil {
+		s.log.Info("next wake plan not found",
+			slog.Int64("user_id", input.UserID),
+			slog.Time("now", input.Now),
+			slog.Duration("lookahead", input.Lookahead),
+		)
+
+		c.JSON(http.StatusOK, GetNextWakePlanResponse{
+			WakePlan: nil,
+		})
+		return
+	}
+
+	s.log.Info("next wake plan found",
+		slog.Int64("user_id", input.UserID),
+		slog.Int64("wake_plan_id", plan.ID),
+		slog.Time("wake_at", plan.WakeAt),
+		slog.String("status", plan.Status),
+	)
+
+	c.JSON(http.StatusOK, GetNextWakePlanResponse{
+		WakePlan: plan,
+	})
 }
 
 func (s *Server) auth(c *gin.Context) {

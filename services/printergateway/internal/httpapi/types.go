@@ -153,6 +153,51 @@ func (r CompleteWakePlanIfPrintedRequest) ToStorageInput(wakePlanID int64) (stor
 	}, nil
 }
 
+type GetNextWakePlanRequest struct {
+	UserID int64 `json:"user_id"`
+
+	Now time.Time `json:"now"`
+
+	Lookahead string `json:"lookahead"`
+}
+
+func (r GetNextWakePlanRequest) ToStorageInput() (storage.GetNextWakePlanInput, error) {
+	if r.UserID <= 0 {
+		return storage.GetNextWakePlanInput{}, errors.New("user_id must be > 0")
+	}
+
+	now := r.Now
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+
+	var lookahead time.Duration
+
+	rawLookahead := strings.TrimSpace(r.Lookahead)
+	if rawLookahead != "" {
+		parsed, err := time.ParseDuration(rawLookahead)
+		if err != nil {
+			return storage.GetNextWakePlanInput{}, fmt.Errorf("lookahead is invalid: %w", err)
+		}
+
+		lookahead = parsed
+	}
+
+	if lookahead < 0 {
+		return storage.GetNextWakePlanInput{}, errors.New("lookahead must be >= 0")
+	}
+
+	return storage.GetNextWakePlanInput{
+		UserID:    r.UserID,
+		Now:       now.UTC(),
+		Lookahead: lookahead,
+	}, nil
+}
+
+type GetNextWakePlanResponse struct {
+	WakePlan *storage.WakePlan `json:"wake_plan"`
+}
+
 type PrintJobResponse struct {
 	Job storage.PrintJob `json:"job"`
 }
