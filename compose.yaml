@@ -133,6 +133,31 @@ services:
     networks:
       - wmp
 
+  printergateway:
+    build:
+      context: .
+      dockerfile: docker/go-service.Dockerfile
+      args:
+        SERVICE_CMD: ./services/printergateway/cmd/printergateway
+    container_name: wmp-printergateway
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      PRINTERGATEWAY_ENV: ${APP_ENV}
+      PRINTERGATEWAY_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      PRINTERGATEWAY_PRINTERGATEWAY_HTTP_ADDR: ${PRINTERGATEWAY_HTTP_ADDR}
+      PRINTERGATEWAY_PRINTERGATEWAY_AUTH_TOKEN: ${PRINTERGATEWAY_AUTH_TOKEN}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8088:8088"
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - wmp
+
 networks:
   wmp:
     driver: bridge

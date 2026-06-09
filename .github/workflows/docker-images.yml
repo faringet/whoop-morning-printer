@@ -46,6 +46,10 @@ jobs:
             image_suffix: receiptworker
             service_cmd: ./services/receiptworker/cmd/receiptworker
 
+          - service: printergateway
+            image_suffix: printergateway
+            service_cmd: ./services/printergateway/cmd/printergateway
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4

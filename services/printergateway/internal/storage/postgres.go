@@ -15,10 +15,12 @@ type Postgres struct {
 
 func NewPostgres(db *sql.DB) (*Postgres, error) {
 	if db == nil {
-		return nil, errors.New("printeragent legacy postgres storage: db is nil")
+		return nil, errors.New("printergateway postgres storage: db is nil")
 	}
 
-	return &Postgres{db: db}, nil
+	return &Postgres{
+		db: db,
+	}, nil
 }
 
 func (s *Postgres) Close() error {
@@ -31,15 +33,15 @@ func (s *Postgres) Close() error {
 
 func (s *Postgres) ClaimReadyPrintJobs(ctx context.Context, input ClaimReadyPrintJobsInput) ([]PrintJob, error) {
 	if s == nil || s.db == nil {
-		return nil, errors.New("printeragent legacy postgres storage: db is nil")
+		return nil, errors.New("printergateway postgres storage: db is nil")
 	}
 	if input.UserID <= 0 {
-		return nil, errors.New("printeragent legacy claim ready print jobs: user_id must be > 0")
+		return nil, errors.New("printergateway claim ready print jobs: user_id must be > 0")
 	}
 
 	workerID := strings.TrimSpace(input.WorkerID)
 	if workerID == "" {
-		return nil, errors.New("printeragent legacy claim ready print jobs: worker_id is required")
+		return nil, errors.New("printergateway claim ready print jobs: worker_id is required")
 	}
 
 	if input.Now.IsZero() {
@@ -57,7 +59,7 @@ func (s *Postgres) ClaimReadyPrintJobs(ctx context.Context, input ClaimReadyPrin
 
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("printeragent legacy begin claim tx: %w", err)
+		return nil, fmt.Errorf("printergateway begin claim tx: %w", err)
 	}
 	defer rollbackSilently(tx)
 
@@ -108,7 +110,7 @@ func (s *Postgres) ClaimReadyPrintJobs(ctx context.Context, input ClaimReadyPrin
 			pj.updated_at
 	`, input.UserID, now, input.Limit, workerID, processingUntil)
 	if err != nil {
-		return nil, fmt.Errorf("printeragent legacy claim ready print jobs: %w", err)
+		return nil, fmt.Errorf("printergateway claim ready print jobs: %w", err)
 	}
 	defer rows.Close()
 
@@ -117,18 +119,18 @@ func (s *Postgres) ClaimReadyPrintJobs(ctx context.Context, input ClaimReadyPrin
 	for rows.Next() {
 		job, err := scanPrintJob(rows)
 		if err != nil {
-			return nil, fmt.Errorf("printeragent legacy scan claimed print job: %w", err)
+			return nil, fmt.Errorf("printergateway scan claimed print job: %w", err)
 		}
 
 		jobs = append(jobs, job)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("printeragent legacy claimed print job rows: %w", err)
+		return nil, fmt.Errorf("printergateway claimed print job rows: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("printeragent legacy commit claim tx: %w", err)
+		return nil, fmt.Errorf("printergateway commit claim tx: %w", err)
 	}
 
 	return jobs, nil
@@ -136,15 +138,15 @@ func (s *Postgres) ClaimReadyPrintJobs(ctx context.Context, input ClaimReadyPrin
 
 func (s *Postgres) MarkPrintJobPrinted(ctx context.Context, input MarkPrintJobPrintedInput) (PrintJob, error) {
 	if s == nil || s.db == nil {
-		return PrintJob{}, errors.New("printeragent legacy postgres storage: db is nil")
+		return PrintJob{}, errors.New("printergateway postgres storage: db is nil")
 	}
 	if input.PrintJobID <= 0 {
-		return PrintJob{}, errors.New("printeragent legacy mark print job printed: print_job_id must be > 0")
+		return PrintJob{}, errors.New("printergateway mark print job printed: print_job_id must be > 0")
 	}
 
 	workerID := strings.TrimSpace(input.WorkerID)
 	if workerID == "" {
-		return PrintJob{}, errors.New("printeragent legacy mark print job printed: worker_id is required")
+		return PrintJob{}, errors.New("printergateway mark print job printed: worker_id is required")
 	}
 
 	if input.PrintedAt.IsZero() {
@@ -183,7 +185,7 @@ func (s *Postgres) MarkPrintJobPrinted(ctx context.Context, input MarkPrintJobPr
 		return PrintJob{}, ErrNotFound
 	}
 	if err != nil {
-		return PrintJob{}, fmt.Errorf("printeragent legacy mark print job printed: %w", err)
+		return PrintJob{}, fmt.Errorf("printergateway mark print job printed: %w", err)
 	}
 
 	return job, nil
@@ -191,20 +193,20 @@ func (s *Postgres) MarkPrintJobPrinted(ctx context.Context, input MarkPrintJobPr
 
 func (s *Postgres) MarkPrintJobFailed(ctx context.Context, input MarkPrintJobFailedInput) (PrintJob, error) {
 	if s == nil || s.db == nil {
-		return PrintJob{}, errors.New("printeragent legacy postgres storage: db is nil")
+		return PrintJob{}, errors.New("printergateway postgres storage: db is nil")
 	}
 	if input.PrintJobID <= 0 {
-		return PrintJob{}, errors.New("printeragent legacy mark print job failed: print_job_id must be > 0")
+		return PrintJob{}, errors.New("printergateway mark print job failed: print_job_id must be > 0")
 	}
 
 	workerID := strings.TrimSpace(input.WorkerID)
 	if workerID == "" {
-		return PrintJob{}, errors.New("printeragent legacy mark print job failed: worker_id is required")
+		return PrintJob{}, errors.New("printergateway mark print job failed: worker_id is required")
 	}
 
 	errorMessage := strings.TrimSpace(input.ErrorMessage)
 	if errorMessage == "" {
-		errorMessage = "printeragent legacy failed to print job"
+		errorMessage = "printergateway failed to print job"
 	}
 
 	if input.FailedAt.IsZero() {
@@ -243,7 +245,7 @@ func (s *Postgres) MarkPrintJobFailed(ctx context.Context, input MarkPrintJobFai
 		return PrintJob{}, ErrNotFound
 	}
 	if err != nil {
-		return PrintJob{}, fmt.Errorf("printeragent legacy mark print job failed: %w", err)
+		return PrintJob{}, fmt.Errorf("printergateway mark print job failed: %w", err)
 	}
 
 	return job, nil
@@ -251,10 +253,10 @@ func (s *Postgres) MarkPrintJobFailed(ctx context.Context, input MarkPrintJobFai
 
 func (s *Postgres) CompleteWakePlanIfPrinted(ctx context.Context, input CompleteWakePlanIfPrintedInput) (WakePlanCompletionResult, error) {
 	if s == nil || s.db == nil {
-		return WakePlanCompletionResult{}, errors.New("printeragent legacy postgres storage: db is nil")
+		return WakePlanCompletionResult{}, errors.New("printergateway postgres storage: db is nil")
 	}
 	if input.WakePlanID <= 0 {
-		return WakePlanCompletionResult{}, errors.New("printeragent legacy complete wake plan: wake_plan_id must be > 0")
+		return WakePlanCompletionResult{}, errors.New("printergateway complete wake plan: wake_plan_id must be > 0")
 	}
 
 	var result WakePlanCompletionResult
@@ -288,7 +290,7 @@ func (s *Postgres) CompleteWakePlanIfPrinted(ctx context.Context, input Complete
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
-		return WakePlanCompletionResult{}, fmt.Errorf("printeragent legacy complete wake plan: %w", err)
+		return WakePlanCompletionResult{}, fmt.Errorf("printergateway complete wake plan: %w", err)
 	}
 
 	err = s.db.QueryRowContext(ctx, `
@@ -302,136 +304,60 @@ func (s *Postgres) CompleteWakePlanIfPrinted(ctx context.Context, input Complete
 		return WakePlanCompletionResult{}, ErrNotFound
 	}
 	if err != nil {
-		return WakePlanCompletionResult{}, fmt.Errorf("printeragent legacy get wake plan status after completion check: %w", err)
+		return WakePlanCompletionResult{}, fmt.Errorf("printergateway get wake plan status after completion check: %w", err)
 	}
 
 	result.Completed = false
+
 	return result, nil
 }
 
 type printJobScanner interface {
-	Scan(dest ...interface{}) error
+	Scan(dest ...any) error
 }
 
-func queryPrintJobRow(ctx context.Context, db *sql.DB, query string, args ...interface{}) (PrintJob, error) {
-	row := db.QueryRowContext(ctx, query, args...)
+func queryPrintJobRow(ctx context.Context, db *sql.DB, query string, args ...any) (PrintJob, error) {
+	if db == nil {
+		return PrintJob{}, errors.New("printergateway query print job row: db is nil")
+	}
 
-	return scanPrintJob(row)
+	return scanPrintJob(db.QueryRowContext(ctx, query, args...))
 }
 
 func scanPrintJob(scanner printJobScanner) (PrintJob, error) {
-	var item nullablePrintJob
+	var job PrintJob
 
-	if err := scanner.Scan(item.scanDest()...); err != nil {
+	if scanner == nil {
+		return PrintJob{}, errors.New("printergateway scan print job: scanner is nil")
+	}
+
+	if err := scanner.Scan(
+		&job.ID,
+		&job.UserID,
+		&job.WakePlanID,
+		&job.Type,
+		&job.Status,
+		&job.NotBefore,
+		&job.PayloadType,
+		&job.PayloadText,
+		&job.ClaimedBy,
+		&job.ProcessingUntil,
+		&job.PrintedAt,
+		&job.FailedAt,
+		&job.ErrorMessage,
+		&job.CreatedAt,
+		&job.UpdatedAt,
+	); err != nil {
 		return PrintJob{}, err
 	}
 
-	return item.toPrintJob(), nil
-}
-
-type nullablePrintJob struct {
-	id     sql.NullInt64
-	userID sql.NullInt64
-
-	wakePlanID sql.NullInt64
-
-	jobType sql.NullString
-	status  sql.NullString
-
-	notBefore sql.NullTime
-
-	payloadType sql.NullString
-	payloadText sql.NullString
-
-	claimedBy       sql.NullString
-	processingUntil sql.NullTime
-
-	printedAt sql.NullTime
-	failedAt  sql.NullTime
-
-	errorMessage sql.NullString
-
-	createdAt sql.NullTime
-	updatedAt sql.NullTime
-}
-
-func (j *nullablePrintJob) scanDest() []interface{} {
-	return []interface{}{
-		&j.id,
-		&j.userID,
-		&j.wakePlanID,
-		&j.jobType,
-		&j.status,
-		&j.notBefore,
-		&j.payloadType,
-		&j.payloadText,
-		&j.claimedBy,
-		&j.processingUntil,
-		&j.printedAt,
-		&j.failedAt,
-		&j.errorMessage,
-		&j.createdAt,
-		&j.updatedAt,
-	}
-}
-
-func (j *nullablePrintJob) toPrintJob() PrintJob {
-	return PrintJob{
-		ID:     j.id.Int64,
-		UserID: j.userID.Int64,
-
-		WakePlanID: int64PtrFromNullInt64(j.wakePlanID),
-
-		Type:   PrintJobType(j.jobType.String),
-		Status: PrintJobStatus(j.status.String),
-
-		NotBefore: j.notBefore.Time,
-
-		PayloadType: j.payloadType.String,
-		PayloadText: j.payloadText.String,
-
-		ClaimedBy:       stringPtrFromNullString(j.claimedBy),
-		ProcessingUntil: timePtrFromNullTime(j.processingUntil),
-
-		PrintedAt: timePtrFromNullTime(j.printedAt),
-		FailedAt:  timePtrFromNullTime(j.failedAt),
-
-		ErrorMessage: stringPtrFromNullString(j.errorMessage),
-
-		CreatedAt: j.createdAt.Time,
-		UpdatedAt: j.updatedAt.Time,
-	}
-}
-
-func int64PtrFromNullInt64(value sql.NullInt64) *int64 {
-	if !value.Valid {
-		return nil
-	}
-
-	v := value.Int64
-	return &v
-}
-
-func stringPtrFromNullString(value sql.NullString) *string {
-	if !value.Valid {
-		return nil
-	}
-
-	v := value.String
-	return &v
-}
-
-func timePtrFromNullTime(value sql.NullTime) *time.Time {
-	if !value.Valid {
-		return nil
-	}
-
-	v := value.Time
-	return &v
+	return job, nil
 }
 
 func rollbackSilently(tx *sql.Tx) {
-	if tx != nil {
-		_ = tx.Rollback()
+	if tx == nil {
+		return
 	}
+
+	_ = tx.Rollback()
 }

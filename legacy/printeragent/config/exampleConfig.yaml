@@ -57,12 +57,13 @@ runtime:
   shutdown_timeout: 15s
 
 storage:
-  postgres:
-    dsn: "postgres://whoop:whoop@localhost:5432/whoop_morning_printer?sslmode=disable"
-    max_open_conns: 5
-    max_idle_conns: 2
-    conn_max_lifetime: 30m
-    conn_max_idle_time: 5m
+  http:
+    base_url: "https://YOUR_DOMAIN/printergateway"
+    token_file: "./config/printergateway.token"
+
+    # Локально для отладки.
+    token: "dev-token"
+    timeout: 10s
 
 printeragent:
   mode: interval

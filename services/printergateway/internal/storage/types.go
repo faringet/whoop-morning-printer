@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var ErrNotFound = errors.New("printeragent legacy storage: not found")
+var ErrNotFound = errors.New("printergateway storage: not found")
 
 type Store interface {
 	Close() error

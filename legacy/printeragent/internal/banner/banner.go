@@ -18,8 +18,8 @@ type Info struct {
 	CPI         int
 	LPI         int
 
-	DatabaseDSN string
-	LogFile     string
+	GatewayURL string
+	LogFile    string
 }
 
 func Print(w io.Writer, info Info) {
@@ -56,7 +56,7 @@ func Print(w io.Writer, info Info) {
 	printRow(w, "output", valueOrDash(info.OutputMode))
 	printRow(w, "printer", valueOrDash(info.PrinterName))
 	printRow(w, "lp", lpMode(info.CPI, info.LPI))
-	printRow(w, "db", safeDatabaseLabel(info.DatabaseDSN))
+	printRow(w, "gateway", safeGatewayLabel(info.GatewayURL))
 	printRow(w, "logs", valueOrDash(info.LogFile))
 
 	fmt.Fprintln(w)
@@ -95,40 +95,40 @@ func lpMode(cpi int, lpi int) string {
 	return fmt.Sprintf("cpi=%d lpi=%d", cpi, lpi)
 }
 
-func safeDatabaseLabel(dsn string) string {
-	dsn = strings.TrimSpace(dsn)
-	if dsn == "" {
+func safeGatewayLabel(rawURL string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
 		return "-"
 	}
 
-	u, err := url.Parse(dsn)
+	u, err := url.Parse(rawURL)
 	if err != nil {
-		return sanitizeRawDSN(dsn)
+		return sanitizeRawURL(rawURL)
 	}
 
 	host := strings.TrimSpace(u.Host)
 	if host == "" {
-		return sanitizeRawDSN(dsn)
+		return sanitizeRawURL(rawURL)
 	}
 
-	dbName := strings.Trim(strings.TrimSpace(u.Path), "/")
-	if dbName == "" {
+	path := strings.TrimSpace(u.Path)
+	if path == "" || path == "/" {
 		return host
 	}
 
-	return host + "/" + dbName
+	return host + path
 }
 
-func sanitizeRawDSN(dsn string) string {
-	if i := strings.Index(dsn, "?"); i >= 0 {
-		dsn = dsn[:i]
+func sanitizeRawURL(rawURL string) string {
+	if i := strings.Index(rawURL, "?"); i >= 0 {
+		rawURL = rawURL[:i]
 	}
 
-	if i := strings.LastIndex(dsn, "@"); i >= 0 {
-		dsn = dsn[i+1:]
+	if i := strings.LastIndex(rawURL, "@"); i >= 0 {
+		rawURL = rawURL[i+1:]
 	}
 
-	return valueOrDash(dsn)
+	return valueOrDash(rawURL)
 }
 
 func valueOrDash(value string) string {

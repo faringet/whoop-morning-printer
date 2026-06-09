@@ -5,12 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/faringet/whoop-morning-printer/legacy/printeragent/internal/app"
 	"github.com/faringet/whoop-morning-printer/legacy/printeragent/internal/banner"
 	"github.com/faringet/whoop-morning-printer/legacy/printeragent/internal/config"
+	"github.com/faringet/whoop-morning-printer/legacy/printeragent/internal/lifecycle"
 	"github.com/faringet/whoop-morning-printer/legacy/printeragent/internal/logger"
 )
 
@@ -56,8 +55,8 @@ func run() error {
 		CPI:         cfg.Output.CPI,
 		LPI:         cfg.Output.LPI,
 
-		DatabaseDSN: cfg.Storage.Postgres.DSN,
-		LogFile:     logFilePath(cfg),
+		GatewayURL: cfg.Storage.HTTP.BaseURL,
+		LogFile:    logFilePath(cfg),
 	})
 
 	log.Info("legacy printeragent booting",
@@ -67,6 +66,7 @@ func run() error {
 		"app", cfg.AppName,
 		"env", cfg.Env,
 		"config_path", configPath,
+		"printergateway_base_url", cfg.Storage.HTTP.BaseURL,
 	)
 
 	application, err := app.New(cfg, log)
@@ -80,10 +80,16 @@ func run() error {
 		}
 	}()
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
-	defer stop()
+	if err := lifecycle.RunWithGracefulShutdown(application, log, lifecycle.Options{
+		ShutdownTimeout: cfg.Runtime.ShutdownTimeout.Duration,
 
-	if err := application.Run(ctx); err != nil && !isShutdownErr(err) {
+		Mode:       cfg.PrinterAgent.Mode,
+		OutputMode: cfg.Output.Mode,
+		GatewayURL: cfg.Storage.HTTP.BaseURL,
+		LogFile:    logFilePath(cfg),
+
+		Out: os.Stdout,
+	}); err != nil {
 		log.Error("app run failed", "err", err)
 		return fmt.Errorf("app run: %w", err)
 	}
