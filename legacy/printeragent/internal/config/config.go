@@ -151,13 +151,13 @@ func candidateConfigPaths(explicitPath string) []string {
 	}
 
 	return []string{
-		"./config/config.local.yaml",
 		"./config/printeragent.yaml",
+		"/opt/whoop-morning-printer/config/printeragent.yaml",
+		"./config/config.local.yaml",
 		"./printeragent.yaml",
 		"./config.local.yaml",
-		"/opt/whoop-morning-printer/config/config.local.yaml",
-		"/etc/whoop-morning-printer/config.local.yaml",
 		"/etc/whoop-morning-printer/printeragent.yaml",
+		"/etc/whoop-morning-printer/config.local.yaml",
 	}
 }
 

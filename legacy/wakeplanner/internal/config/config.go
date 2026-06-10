@@ -126,12 +126,11 @@ func candidateConfigPaths(explicitPath string) []string {
 	}
 
 	return []string{
-		"./config/config.local.yaml",
 		"./config/wakeplanner.yaml",
+		"/opt/whoop-morning-printer/config/wakeplanner.yaml",
+		"./config/config.local.yaml",
 		"./wakeplanner.yaml",
 		"./config.local.yaml",
-		"/opt/whoop-morning-printer/config/wakeplanner.yaml",
-		"/opt/whoop-morning-printer/config/config.local.yaml",
 		"/etc/whoop-morning-printer/wakeplanner.yaml",
 		"/etc/whoop-morning-printer/config.local.yaml",
 	}
