@@ -1,0 +1,278 @@
+name: Mac mini Legacy Release
+
+on:
+  push:
+    tags:
+      - "v*-macmini"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Mac mini release version, for example v0.3.0-macmini"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: macmini-legacy-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-macmini-legacy:
+    name: release-macmini-legacy-darwin-amd64
+    runs-on: ubuntu-latest
+
+    env:
+      TARGET_OS: darwin
+      TARGET_ARCH: amd64
+      GOAMD64: v1
+      DIST_NAME: wmp-macmini-legacy-darwin-amd64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME}"
+          fi
+
+          if [[ ! "${VERSION}" =~ ^v[0-9]+(\.[0-9]+){1,2}-macmini$ ]]; then
+            echo "Invalid version: ${VERSION}"
+            echo "Expected something like v0.3.0-macmini"
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Setup Go 1.20
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.20.14"
+          cache: true
+          cache-dependency-path: |
+            legacy/printeragent/go.mod
+            legacy/printeragent/go.sum
+            legacy/wakeplanner/go.mod
+            legacy/wakeplanner/go.sum
+
+      - name: Verify legacy formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          unformatted="$(find legacy/printeragent legacy/wakeplanner -name '*.go' -print0 | xargs -0 gofmt -l)"
+
+          if [ -n "${unformatted}" ]; then
+            echo "These legacy Go files are not gofmt-formatted:"
+            echo "${unformatted}"
+            exit 1
+          fi
+
+      - name: Download printeragent modules
+        working-directory: legacy/printeragent
+        run: go mod download all
+
+      - name: Test legacy printeragent
+        working-directory: legacy/printeragent
+        run: go test ./...
+
+      - name: Download wakeplanner modules
+        working-directory: legacy/wakeplanner
+        run: go mod download all
+
+      - name: Test legacy wakeplanner
+        working-directory: legacy/wakeplanner
+        run: go test ./...
+
+      - name: Prepare dist layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "dist/${DIST_NAME}/bin"
+          mkdir -p "dist/${DIST_NAME}/config"
+
+      - name: Build legacy printeragent for Intel macOS
+        working-directory: legacy/printeragent
+        env:
+          CGO_ENABLED: "0"
+          GOOS: darwin
+          GOARCH: amd64
+          GOAMD64: v1
+        run: |
+          go build \
+            -trimpath \
+            -ldflags="-s -w -X main.version=${{ steps.version.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -o "../../dist/${DIST_NAME}/bin/printeragent-legacy" \
+            ./cmd/printeragent
+
+      - name: Build legacy wakeplanner for Intel macOS
+        working-directory: legacy/wakeplanner
+        env:
+          CGO_ENABLED: "0"
+          GOOS: darwin
+          GOARCH: amd64
+          GOAMD64: v1
+        run: |
+          go build \
+            -trimpath \
+            -ldflags="-s -w -X main.version=${{ steps.version.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -o "../../dist/${DIST_NAME}/bin/wakeplanner-legacy" \
+            ./cmd/wakeplanner
+
+      - name: Add example configs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp legacy/printeragent/config/exampleConfig.yaml "dist/${DIST_NAME}/config/printeragent.example.yaml"
+          cp legacy/wakeplanner/config/exampleConfig.yaml "dist/${DIST_NAME}/config/wakeplanner.example.yaml"
+
+      - name: Add README
+        shell: bash
+        run: |
+          cat > "dist/${DIST_NAME}/README.txt" <<'EOF'
+          WHOOP Morning Printer - Mac mini legacy edge agents
+
+          Target:
+            macOS Intel / darwin-amd64
+            Built with Go 1.20 for old macOS compatibility.
+            Tested target machine: Mac mini on macOS 10.13.6 High Sierra.
+
+          Included binaries:
+
+            bin/printeragent-legacy
+              Local print agent.
+              Connects to printergateway over HTTPS.
+              Claims ready print_jobs.
+              Prints receipts through macOS CUPS/lp.
+              Marks jobs as printed or failed.
+
+            bin/wakeplanner-legacy
+              Local sleep/wake planner.
+              Connects to printergateway over HTTPS.
+              Fetches the next wake schedule.
+              Uses pmset to schedule Mac mini wakeorpoweron.
+              Can call pmset sleepnow after nighttime planning.
+
+          Current architecture:
+
+            Mac mini
+              -> HTTPS printergateway
+              -> VPS Nginx
+              -> VPS printergateway
+              -> VPS PostgreSQL
+
+          Important:
+            Mac mini no longer needs direct PostgreSQL access.
+            Mac mini no longer needs an SSH tunnel to VPS Postgres.
+
+          Recommended directory layout on Mac mini:
+
+            /opt/whoop-morning-printer/
+              bin/
+                printeragent-legacy
+                wakeplanner-legacy
+
+              config/
+                config.local.yaml
+                wakeplanner.yaml
+                printergateway.token
+
+              logs/
+                printeragent.log
+                wakeplanner.log
+
+              out/
+                print-spool/
+                receipts/
+
+          Install:
+
+            sudo mkdir -p /opt/whoop-morning-printer/bin
+            sudo mkdir -p /opt/whoop-morning-printer/config
+            sudo mkdir -p /opt/whoop-morning-printer/logs
+            sudo mkdir -p /opt/whoop-morning-printer/out/print-spool
+            sudo mkdir -p /opt/whoop-morning-printer/out/receipts
+
+            sudo cp bin/printeragent-legacy /opt/whoop-morning-printer/bin/printeragent-legacy
+            sudo cp bin/wakeplanner-legacy /opt/whoop-morning-printer/bin/wakeplanner-legacy
+
+            sudo chmod +x /opt/whoop-morning-printer/bin/printeragent-legacy
+            sudo chmod +x /opt/whoop-morning-printer/bin/wakeplanner-legacy
+
+            sudo cp config/printeragent.example.yaml /opt/whoop-morning-printer/config/config.local.yaml
+            sudo cp config/wakeplanner.example.yaml /opt/whoop-morning-printer/config/wakeplanner.yaml
+
+          Token:
+
+            Create this file on Mac mini:
+
+              /opt/whoop-morning-printer/config/printergateway.token
+
+            It must contain the same token as VPS .env:
+
+              PRINTERGATEWAY_AUTH_TOKEN
+
+
+            Recommended permissions:
+
+              sudo chmod 600 /opt/whoop-morning-printer/config/printergateway.token
+
+         
+          Run printeragent manually:
+
+            cd /opt/whoop-morning-printer
+            ./bin/printeragent-legacy
+
+
+          Run wakeplanner dry-run:
+
+              cd /opt/whoop-morning-printer
+
+
+          Run wakeplanner with real pmset:
+
+              cd /opt/whoop-morning-printer
+              sudo ./bin/wakeplanner-legacy
+
+
+          Logs:
+
+            tail -f /opt/whoop-morning-printer/logs/printeragent.log
+            tail -f /opt/whoop-morning-printer/logs/wakeplanner.log
+
+          EOF
+
+      - name: Package release archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          tar -czf "${DIST_NAME}.tar.gz" "${DIST_NAME}"
+
+      - name: Calculate checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          shasum -a 256 "${DIST_NAME}.tar.gz" > "${DIST_NAME}.sha256"
+
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "${VERSION}" \
+            "dist/${DIST_NAME}.tar.gz" \
+            "dist/${DIST_NAME}.sha256" \
+            --title "${VERSION} — Mac mini edge agents" \
+            --notes "Mac mini legacy edge release with printeragent-legacy and wakeplanner-legacy for old Intel macOS / darwin-amd64."

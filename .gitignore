@@ -26,6 +26,9 @@
 legacy/printeragent/config/config.yaml
 legacy/printeragent/config/config.local.yaml
 
+legacy/wakeplanner/config/config.yaml
+legacy/wakeplanner/config/config.local.yaml
+
 # local migrator configs
 /cmd/migrator/config.yaml
 /cmd/migrator/config.local.yaml

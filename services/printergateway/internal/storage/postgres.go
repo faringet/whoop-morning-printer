@@ -312,7 +312,53 @@ func (s *Postgres) CompleteWakePlanIfPrinted(ctx context.Context, input Complete
 	return result, nil
 }
 
-type printJobScanner interface {
+func (s *Postgres) GetNextWakePlan(ctx context.Context, input GetNextWakePlanInput) (*WakePlan, error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("printergateway postgres storage: db is nil")
+	}
+	if input.UserID <= 0 {
+		return nil, errors.New("printergateway get next wake plan: user_id must be > 0")
+	}
+
+	if input.Now.IsZero() {
+		input.Now = time.Now().UTC()
+	}
+	if input.Lookahead <= 0 {
+		input.Lookahead = 36 * time.Hour
+	}
+
+	now := input.Now.UTC()
+	lookaheadUntil := now.Add(input.Lookahead)
+
+	plan, err := queryWakePlanRow(ctx, s.db, `
+		SELECT
+			id,
+			user_id,
+			wake_at,
+			status,
+			wake_receipt_job_id,
+			final_report_job_id,
+			created_at,
+			updated_at
+		FROM wake_plans
+		WHERE user_id = $1
+		  AND status = 'scheduled'
+		  AND wake_at >= $2
+		  AND wake_at <= $3
+		ORDER BY wake_at ASC, id ASC
+		LIMIT 1
+	`, input.UserID, now, lookaheadUntil)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("printergateway get next wake plan: %w", err)
+	}
+
+	return &plan, nil
+}
+
+type rowScanner interface {
 	Scan(dest ...any) error
 }
 
@@ -324,7 +370,7 @@ func queryPrintJobRow(ctx context.Context, db *sql.DB, query string, args ...any
 	return scanPrintJob(db.QueryRowContext(ctx, query, args...))
 }
 
-func scanPrintJob(scanner printJobScanner) (PrintJob, error) {
+func scanPrintJob(scanner rowScanner) (PrintJob, error) {
 	var job PrintJob
 
 	if scanner == nil {
@@ -352,6 +398,37 @@ func scanPrintJob(scanner printJobScanner) (PrintJob, error) {
 	}
 
 	return job, nil
+}
+
+func queryWakePlanRow(ctx context.Context, db *sql.DB, query string, args ...any) (WakePlan, error) {
+	if db == nil {
+		return WakePlan{}, errors.New("printergateway query wake plan row: db is nil")
+	}
+
+	return scanWakePlan(db.QueryRowContext(ctx, query, args...))
+}
+
+func scanWakePlan(scanner rowScanner) (WakePlan, error) {
+	var plan WakePlan
+
+	if scanner == nil {
+		return WakePlan{}, errors.New("printergateway scan wake plan: scanner is nil")
+	}
+
+	if err := scanner.Scan(
+		&plan.ID,
+		&plan.UserID,
+		&plan.WakeAt,
+		&plan.Status,
+		&plan.WakeReceiptJobID,
+		&plan.FinalReportJobID,
+		&plan.CreatedAt,
+		&plan.UpdatedAt,
+	); err != nil {
+		return WakePlan{}, err
+	}
+
+	return plan, nil
 }
 
 func rollbackSilently(tx *sql.Tx) {
