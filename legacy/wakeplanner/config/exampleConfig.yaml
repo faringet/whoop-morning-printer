@@ -1,0 +1,37 @@
+app_name: wakeplanner-legacy
+env: prod
+
+logger:
+  level: info
+  file_enabled: true
+  file_path: "./logs/wakeplanner.log"
+
+runtime:
+  shutdown_timeout: 15s
+
+storage:
+  http:
+    base_url: "https://printergateway.ru"
+
+    token_file: "/opt/whoop-morning-printer/config/printergateway.token"
+
+    # Локально для  отладки
+    token: ""
+
+    timeout: 10s
+
+wakeplanner:
+  user_id: 1
+
+  # Насколько далеко вперёд искать ближайший wake_plan.
+  lookahead: 36h
+
+  # За сколько до будильника будить Mac mini.
+  pre_wake_lead: 20m
+
+  sleep_after_planning: false
+
+  dry_run: true
+
+pmset:
+  path: "pmset"
