@@ -4,6 +4,12 @@ import {
 } from "react";
 
 import {
+  getReadableErrorMessage,
+} from "./api/httpError";
+import {
+  wakePlanService,
+} from "./api/wakePlanServiceFactory";
+import {
   appViews,
   defaultAppView,
   type AppView,
@@ -15,7 +21,6 @@ import LoadingWakePlanPanel from "./components/LoadingWakePlanPanel";
 import SignalFlow from "./components/SignalFlow";
 import SystemStatus from "./components/SystemStatus";
 import WakePlanPanel from "./components/WakePlanPanel";
-import { mockWakePlanService } from "./mocks/MockWakePlanService";
 import type {
   SaveWakePlanInput,
   WakePlan,
@@ -46,16 +51,16 @@ function App() {
   const telegramAppState = useTelegramApp();
 
   const [currentView, setCurrentView] =
-      useState<AppView>(defaultAppView);
+    useState<AppView>(defaultAppView);
 
   const [wakePlan, setWakePlan] =
-      useState<WakePlan | null>(null);
+    useState<WakePlan | null>(null);
 
   const [isLoading, setIsLoading] =
-      useState(true);
+    useState(true);
 
   const [loadError, setLoadError] =
-      useState<string | null>(null);
+    useState<string | null>(null);
 
   const [
     isCancelDialogOpen,
@@ -63,10 +68,10 @@ function App() {
   ] = useState(false);
 
   const [isCancelling, setIsCancelling] =
-      useState(false);
+    useState(false);
 
   const [cancelError, setCancelError] =
-      useState<string | null>(null);
+    useState<string | null>(null);
 
   useEffect(() => {
     logTelegramRuntime(telegramAppState);
@@ -75,40 +80,40 @@ function App() {
   useEffect(() => {
     let ignoreResult = false;
 
-    mockWakePlanService
-        .getCurrent()
-        .then((currentWakePlan) => {
-          if (ignoreResult) {
-            return;
-          }
+    wakePlanService
+      .getCurrent()
+      .then((currentWakePlan) => {
+        if (ignoreResult) {
+          return;
+        }
 
-          setWakePlan(currentWakePlan);
-          setLoadError(null);
-        })
-        .catch((error: unknown) => {
-          console.error(
-              "Failed to load current wake plan",
-              error,
-          );
+        setWakePlan(currentWakePlan);
+        setLoadError(null);
+      })
+      .catch((error: unknown) => {
+        console.error(
+          "Failed to load current wake plan",
+          error,
+        );
 
-          if (ignoreResult) {
-            return;
-          }
+        if (ignoreResult) {
+          return;
+        }
 
-          notifyOperationFailed();
+        notifyOperationFailed();
 
-          setLoadError(
-              getErrorMessage(
-                  error,
-                  "Could not read the current wake schedule.",
-              ),
-          );
-        })
-        .finally(() => {
-          if (!ignoreResult) {
-            setIsLoading(false);
-          }
-        });
+        setLoadError(
+          getReadableErrorMessage(
+            error,
+            "Could not read the current wake schedule.",
+          ),
+        );
+      })
+      .finally(() => {
+        if (!ignoreResult) {
+          setIsLoading(false);
+        }
+      });
 
     return () => {
       ignoreResult = true;
@@ -126,22 +131,22 @@ function App() {
 
   useTelegramBackButton({
     isVisible:
-        currentView === appViews.schedule,
+      currentView === appViews.schedule,
     onBack: handleBackToTonight,
   });
 
   useTelegramClosingConfirmation(
-      currentView === appViews.schedule ||
+    currentView === appViews.schedule ||
       isCancelDialogOpen ||
       isCancelling,
   );
 
   async function handleSaveMorning(
-      input: SaveWakePlanInput,
+    input: SaveWakePlanInput,
   ): Promise<void> {
     try {
       const savedWakePlan =
-          await mockWakePlanService.save(input);
+        await wakePlanService.save(input);
 
       setWakePlan(savedWakePlan);
       setLoadError(null);
@@ -184,8 +189,8 @@ function App() {
     setCancelError(null);
 
     try {
-      await mockWakePlanService.cancel(
-          wakePlan.id,
+      await wakePlanService.cancel(
+        wakePlan.id,
       );
 
       setWakePlan(null);
@@ -195,17 +200,17 @@ function App() {
       notifyWakePlanCancelled();
     } catch (error) {
       console.error(
-          "Failed to cancel wake plan",
-          error,
+        "Failed to cancel wake plan",
+        error,
       );
 
       notifyOperationFailed();
 
       setCancelError(
-          getErrorMessage(
-              error,
-              "The wake plan is still active. Please try again.",
-          ),
+        getReadableErrorMessage(
+          error,
+          "The wake plan is still active. Please try again.",
+        ),
       );
     } finally {
       setIsCancelling(false);
@@ -218,22 +223,22 @@ function App() {
 
     try {
       const currentWakePlan =
-          await mockWakePlanService.getCurrent();
+        await wakePlanService.getCurrent();
 
       setWakePlan(currentWakePlan);
     } catch (error) {
       console.error(
-          "Failed to reload current wake plan",
-          error,
+        "Failed to reload current wake plan",
+        error,
       );
 
       notifyOperationFailed();
 
       setLoadError(
-          getErrorMessage(
-              error,
-              "Could not read the current wake schedule.",
-          ),
+        getReadableErrorMessage(
+          error,
+          "Could not read the current wake schedule.",
+        ),
       );
     } finally {
       setIsLoading(false);
@@ -242,133 +247,119 @@ function App() {
 
   if (currentView === appViews.schedule) {
     return (
-        <SchedulePage
-            wakePlan={wakePlan}
-            onBack={handleBackToTonight}
-            onSave={handleSaveMorning}
-        />
+      <SchedulePage
+        wakePlan={wakePlan}
+        onBack={handleBackToTonight}
+        onSave={handleSaveMorning}
+      />
     );
   }
 
   return (
-      <>
-        <main className="app-shell">
-          <header className="station-header">
-            <div className="station-heading">
-              <p className="terminal-label station-kicker">
-                WHOOP MORNING PRINTER
-              </p>
+    <>
+      <main className="app-shell">
+        <header className="station-header">
+          <div className="station-heading">
+            <p className="terminal-label station-kicker">
+              WHOOP MORNING PRINTER
+            </p>
 
-              <h1 className="station-title">
-                Morning Station
-              </h1>
-            </div>
+            <h1 className="station-title">
+              Morning Station
+            </h1>
+          </div>
 
-            <SystemStatus
-                isLoading={isLoading}
-                hasError={loadError !== null}
-            />
-          </header>
+          <SystemStatus
+            isLoading={isLoading}
+            hasError={loadError !== null}
+          />
+        </header>
 
+        {isLoading ? (
+          <LoadingWakePlanPanel />
+        ) : loadError ? (
+          <ErrorWakePlanPanel
+            message={loadError}
+            isRetrying={false}
+            onRetry={handleRetryLoad}
+          />
+        ) : wakePlan ? (
+          <WakePlanPanel
+            wakePlan={wakePlan}
+            onEdit={handleOpenSchedule}
+          />
+        ) : (
+          <EmptyWakePlanPanel
+            onCreate={handleOpenSchedule}
+          />
+        )}
+
+        <SignalFlow />
+
+        {!isLoading &&
+        !loadError &&
+        wakePlan ? (
+          <div className="station-actions">
+            <button
+              className="button button-primary"
+              type="button"
+              onClick={handleOpenSchedule}
+            >
+              Edit morning
+            </button>
+
+            <button
+              className="button button-ghost"
+              type="button"
+              onClick={handleOpenCancelDialog}
+            >
+              Cancel schedule
+            </button>
+          </div>
+        ) : null}
+
+        <footer className="station-footer">
           {isLoading ? (
-              <LoadingWakePlanPanel />
-          ) : loadError ? (
-              <ErrorWakePlanPanel
-                  message={loadError}
-                  isRetrying={false}
-                  onRetry={handleRetryLoad}
-              />
-          ) : wakePlan ? (
-              <WakePlanPanel
-                  wakePlan={wakePlan}
-                  onEdit={handleOpenSchedule}
-              />
-          ) : (
-              <EmptyWakePlanPanel
-                  onCreate={handleOpenSchedule}
-              />
-          )}
-
-          <SignalFlow />
-
-          {!isLoading &&
-          !loadError &&
-          wakePlan ? (
-              <div className="station-actions">
-                <button
-                    className="button button-primary"
-                    type="button"
-                    onClick={handleOpenSchedule}
-                >
-                  Edit morning
-                </button>
-
-                <button
-                    className="button button-ghost"
-                    type="button"
-                    onClick={handleOpenCancelDialog}
-                >
-                  Cancel schedule
-                </button>
+            <>
+              <div>Reading wake schedule</div>
+              <div>
+                Morning system initializing
               </div>
-          ) : null}
+            </>
+          ) : loadError ? (
+            <>
+              <div>Connection fault detected</div>
+              <div>
+                Wake state requires retry
+              </div>
+            </>
+          ) : wakePlan ? (
+            <>
+              <div>Receipt machine ready</div>
+              <div>
+                Phone optional · Morning armed
+              </div>
+            </>
+          ) : (
+            <>
+              <div>Awaiting wake signal</div>
+              <div>
+                Configure your next morning
+              </div>
+            </>
+          )}
+        </footer>
+      </main>
 
-          <footer className="station-footer">
-            {isLoading ? (
-                <>
-                  <div>Reading wake schedule</div>
-                  <div>
-                    Morning system initializing
-                  </div>
-                </>
-            ) : loadError ? (
-                <>
-                  <div>Connection fault detected</div>
-                  <div>
-                    Wake state requires retry
-                  </div>
-                </>
-            ) : wakePlan ? (
-                <>
-                  <div>Receipt machine ready</div>
-                  <div>
-                    Phone optional · Morning armed
-                  </div>
-                </>
-            ) : (
-                <>
-                  <div>Awaiting wake signal</div>
-                  <div>
-                    Configure your next morning
-                  </div>
-                </>
-            )}
-          </footer>
-        </main>
-
-        <CancelScheduleDialog
-            isOpen={isCancelDialogOpen}
-            isCancelling={isCancelling}
-            errorMessage={cancelError}
-            onClose={handleCloseCancelDialog}
-            onConfirm={handleConfirmCancel}
-        />
-      </>
+      <CancelScheduleDialog
+        isOpen={isCancelDialogOpen}
+        isCancelling={isCancelling}
+        errorMessage={cancelError}
+        onClose={handleCloseCancelDialog}
+        onConfirm={handleConfirmCancel}
+      />
+    </>
   );
-}
-
-function getErrorMessage(
-    error: unknown,
-    fallback: string,
-): string {
-  if (
-      error instanceof Error &&
-      error.message.trim().length > 0
-  ) {
-    return error.message;
-  }
-
-  return fallback;
 }
 
 export default App;
