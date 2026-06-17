@@ -1,0 +1,406 @@
+/*
+ * Morning Station application shell
+ */
+
+.station-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.station-heading {
+    min-width: 0;
+}
+
+.station-kicker {
+    color: var(--color-magenta-soft);
+}
+
+.station-title {
+    margin-top: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    letter-spacing: var(--letter-spacing-wide);
+    text-transform: uppercase;
+}
+
+/*
+ * System status
+ */
+
+.system-status {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-success);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    letter-spacing: var(--letter-spacing-wide);
+    text-transform: uppercase;
+    transition:
+            color var(--duration-normal) var(--ease-standard),
+            opacity var(--duration-normal) var(--ease-standard);
+}
+
+.system-status__dot {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 8px;
+    border-radius: 50%;
+    background: var(--color-success);
+    box-shadow:
+            0 0 8px rgb(155 231 166 / 70%),
+            0 0 18px rgb(155 231 166 / 30%);
+    transition:
+            background-color var(--duration-normal) var(--ease-standard),
+            box-shadow var(--duration-normal) var(--ease-standard);
+}
+
+/*
+ * Connecting state
+ */
+
+.system-status--loading {
+    color: var(--color-cyan-soft);
+}
+
+.system-status--loading .system-status__dot {
+    background: var(--color-cyan);
+    box-shadow:
+            0 0 8px rgb(72 216 255 / 72%),
+            0 0 20px rgb(72 216 255 / 30%);
+    animation:
+            system-status-loading-pulse
+            1.4s
+            ease-in-out
+            infinite;
+}
+
+/*
+ * Fault state
+ */
+
+.system-status--error {
+    color: var(--color-danger);
+}
+
+.system-status--error .system-status__dot {
+    background: var(--color-danger);
+    box-shadow:
+            0 0 8px rgb(255 121 114 / 72%),
+            0 0 20px rgb(255 121 114 / 30%);
+    animation:
+            system-status-error-pulse
+            1.8s
+            ease-in-out
+            infinite;
+}
+
+@keyframes system-status-loading-pulse {
+    0%,
+    100% {
+        opacity: 0.42;
+        transform: scale(0.82);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes system-status-error-pulse {
+    0%,
+    100% {
+        opacity: 0.58;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+/*
+ * Main wake panel
+ */
+
+.wake-panel {
+    padding: var(--space-6);
+}
+
+.wake-panel__label {
+    position: relative;
+    z-index: 1;
+}
+
+.wake-panel__hero {
+    position: relative;
+    z-index: 1;
+    padding-block: var(--space-10);
+    text-align: center;
+}
+
+.wake-panel__time-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.wake-panel__time-button:hover .wake-panel__time {
+    color: var(--color-magenta);
+    transform: scale(1.015);
+}
+
+.wake-panel__time-button:active .wake-panel__time {
+    transform: scale(0.985);
+}
+
+.wake-panel__time {
+    color: var(--color-magenta-soft);
+    font-family: var(--font-display);
+    font-size: var(--font-size-clock);
+    font-weight: 700;
+    line-height: var(--line-height-tight);
+    letter-spacing: var(--letter-spacing-tight);
+    text-shadow: var(--text-glow-magenta);
+    transition:
+            color var(--duration-normal) var(--ease-standard),
+            transform var(--duration-fast) var(--ease-standard),
+            text-shadow var(--duration-normal) var(--ease-standard);
+}
+
+.wake-panel__date {
+    margin-top: var(--space-4);
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    letter-spacing: var(--letter-spacing-terminal);
+    text-transform: uppercase;
+}
+
+/*
+ * Wake schedule values
+ */
+
+.wake-panel__status-list {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: var(--space-3);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--border-color-subtle);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+}
+
+.status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+}
+
+.status-row__label {
+    color: var(--color-text-muted);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.status-row__value {
+    flex-shrink: 0;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.status-row__value--magenta {
+    color: var(--color-magenta-soft);
+}
+
+.status-row__value--cyan {
+    color: var(--color-cyan-soft);
+}
+
+.status-row__value--amber {
+    color: var(--color-amber-soft);
+}
+
+.status-row__value--success {
+    color: var(--color-success);
+}
+
+.status-row__value--danger {
+    color: var(--color-danger);
+}
+
+/*
+ * Signal flow panel
+ */
+
+.signal-panel {
+    padding: var(--space-5);
+    margin-top: var(--space-5);
+    font-family: var(--font-mono);
+}
+
+.signal-panel__label {
+    position: relative;
+    z-index: 1;
+    color: var(--color-cyan-soft);
+}
+
+.signal-flow {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-top: var(--space-5);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    letter-spacing: var(--letter-spacing-wide);
+    text-transform: uppercase;
+}
+
+.signal-flow__node {
+    white-space: nowrap;
+}
+
+.signal-flow__arrow {
+    font-weight: 700;
+}
+
+.signal-flow__arrow--magenta {
+    color: var(--color-magenta-soft);
+}
+
+.signal-flow__arrow--cyan {
+    color: var(--color-cyan-soft);
+}
+
+/*
+ * Actions
+ */
+
+.station-actions {
+    display: grid;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+
+.station-actions .button {
+    width: 100%;
+}
+
+/*
+ * Footer
+ */
+
+.station-footer {
+    margin-top: var(--space-8);
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-relaxed);
+    letter-spacing: var(--letter-spacing-wide);
+    text-align: center;
+    text-transform: uppercase;
+}
+
+/*
+ * Subtle terminal decoration
+ */
+
+.station-footer::before {
+    display: block;
+    width: 72px;
+    height: 1px;
+    margin: 0 auto var(--space-4);
+    content: "";
+    background:
+            linear-gradient(
+                    90deg,
+                    transparent,
+                    var(--color-magenta-dark),
+                    transparent
+            );
+    box-shadow: var(--shadow-magenta);
+}
+
+/*
+ * Small devices
+ */
+
+@media (max-width: 420px) {
+    .station-header {
+        align-items: flex-start;
+    }
+
+    .station-title {
+        font-size: var(--font-size-lg);
+    }
+
+    .system-status {
+        max-width: 96px;
+        justify-content: flex-end;
+        font-size: 0.625rem;
+        text-align: right;
+    }
+
+    .wake-panel {
+        padding:
+                var(--space-5)
+                var(--space-4);
+    }
+
+    .wake-panel__hero {
+        padding-block:
+                var(--space-8)
+                var(--space-10);
+    }
+
+    .status-row__label {
+        font-size: var(--font-size-xs);
+    }
+
+    .signal-flow {
+        column-gap: var(--space-2);
+        row-gap: var(--space-3);
+    }
+}
+
+/*
+ * Larger preview
+ */
+
+@media (min-width: 760px) {
+    .wake-panel {
+        padding: var(--space-8);
+    }
+
+    .wake-panel__hero {
+        padding-block: var(--space-12);
+    }
+}
+
+/*
+ * Reduced motion
+ */
+
+@media (prefers-reduced-motion: reduce) {
+    .system-status--loading .system-status__dot,
+    .system-status--error .system-status__dot {
+        animation: none;
+    }
+}
