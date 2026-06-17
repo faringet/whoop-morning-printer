@@ -21,6 +21,21 @@ import type {
   WakePlan,
 } from "./model/wakePlan";
 import SchedulePage from "./pages/SchedulePage";
+import { logTelegramRuntime } from "./telegram/telegramDiagnostics";
+import {
+  notifyCancelDialogOpened,
+  notifyOperationFailed,
+  notifyScheduleOpened,
+  notifyWakePlanCancelled,
+  notifyWakePlanSaved,
+} from "./telegram/telegramFeedback";
+import { useTelegramApp } from "./telegram/useTelegramApp";
+import {
+  useTelegramBackButton,
+} from "./telegram/useTelegramBackButton";
+import {
+  useTelegramClosingConfirmation,
+} from "./telegram/useTelegramClosingConfirmation";
 import "./styles/app.css";
 import "./styles/cancelDialog.css";
 import "./styles/emptyWakePlan.css";
@@ -28,6 +43,8 @@ import "./styles/errorWakePlan.css";
 import "./styles/schedule.css";
 
 function App() {
+  const telegramAppState = useTelegramApp();
+
   const [currentView, setCurrentView] =
       useState<AppView>(defaultAppView);
 
@@ -52,6 +69,10 @@ function App() {
       useState<string | null>(null);
 
   useEffect(() => {
+    logTelegramRuntime(telegramAppState);
+  }, [telegramAppState]);
+
+  useEffect(() => {
     let ignoreResult = false;
 
     mockWakePlanService
@@ -74,6 +95,8 @@ function App() {
             return;
           }
 
+          notifyOperationFailed();
+
           setLoadError(
               getErrorMessage(
                   error,
@@ -93,6 +116,7 @@ function App() {
   }, []);
 
   function handleOpenSchedule() {
+    notifyScheduleOpened();
     setCurrentView(appViews.schedule);
   }
 
@@ -100,20 +124,35 @@ function App() {
     setCurrentView(appViews.tonight);
   }
 
+  useTelegramBackButton({
+    isVisible:
+        currentView === appViews.schedule,
+    onBack: handleBackToTonight,
+  });
+
+  useTelegramClosingConfirmation(
+      currentView === appViews.schedule ||
+      isCancelDialogOpen ||
+      isCancelling,
+  );
+
   async function handleSaveMorning(
       input: SaveWakePlanInput,
   ): Promise<void> {
-    /*
-     * Ошибку здесь намеренно не перехватываем:
-     * SchedulePage обработает её и покажет
-     * сообщение пользователю.
-     */
-    const savedWakePlan =
-        await mockWakePlanService.save(input);
+    try {
+      const savedWakePlan =
+          await mockWakePlanService.save(input);
 
-    setWakePlan(savedWakePlan);
-    setLoadError(null);
-    setCurrentView(appViews.tonight);
+      setWakePlan(savedWakePlan);
+      setLoadError(null);
+      setCurrentView(appViews.tonight);
+
+      notifyWakePlanSaved();
+    } catch (error) {
+      notifyOperationFailed();
+
+      throw error;
+    }
   }
 
   function handleOpenCancelDialog() {
@@ -123,6 +162,8 @@ function App() {
 
     setCancelError(null);
     setIsCancelDialogOpen(true);
+
+    notifyCancelDialogOpened();
   }
 
   function handleCloseCancelDialog() {
@@ -150,11 +191,15 @@ function App() {
       setWakePlan(null);
       setIsCancelDialogOpen(false);
       setCancelError(null);
+
+      notifyWakePlanCancelled();
     } catch (error) {
       console.error(
           "Failed to cancel wake plan",
           error,
       );
+
+      notifyOperationFailed();
 
       setCancelError(
           getErrorMessage(
@@ -181,6 +226,8 @@ function App() {
           "Failed to reload current wake plan",
           error,
       );
+
+      notifyOperationFailed();
 
       setLoadError(
           getErrorMessage(
