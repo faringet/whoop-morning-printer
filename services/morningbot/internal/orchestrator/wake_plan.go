@@ -33,6 +33,11 @@ type ScheduleWakeInput struct {
 	TelegramUserID *int64
 }
 
+type ScheduleWakeAtInput struct {
+	WakeAt         time.Time
+	TelegramUserID *int64
+}
+
 type StatusResult struct {
 	WakePlan storage.WakePlan
 }
@@ -106,19 +111,28 @@ func (o *Orchestrator) ScheduleWake(ctx context.Context, input ScheduleWakeInput
 		return storage.ScheduleWakePlanResult{}, err
 	}
 
-	prepareAt := wakeAt.Add(-o.cfg.PrepareBefore)
-	finalDeadlineAt := wakeAt.Add(o.cfg.FinalDeadlineAfter)
+	return o.scheduleWakePlan(ctx, wakeAt)
+}
 
-	return o.store.ScheduleWakePlan(ctx, storage.ScheduleWakePlanInput{
-		UserID: o.cfg.UserID,
+func (o *Orchestrator) ScheduleWakeAt(ctx context.Context, input ScheduleWakeAtInput) (storage.ScheduleWakePlanResult, error) {
+	if o == nil {
+		return storage.ScheduleWakePlanResult{}, errors.New("orchestrator: orchestrator is nil")
+	}
 
-		Date:            dateOnlyUTC(wakeAt, o.cfg.Timezone),
-		WakeAt:          wakeAt,
-		PrepareAt:       prepareAt,
-		FinalDeadlineAt: finalDeadlineAt,
+	if err := o.ensureUser(ctx, input.TelegramUserID); err != nil {
+		return storage.ScheduleWakePlanResult{}, err
+	}
 
-		Source: storage.WakePlanSourceTelegram,
-	})
+	if input.WakeAt.IsZero() {
+		return storage.ScheduleWakePlanResult{}, fmt.Errorf("%w: wake_at is required", ErrInvalidWakeTime)
+	}
+
+	wakeAt := input.WakeAt.UTC()
+	if wakeAt.Before(o.now().UTC()) {
+		return storage.ScheduleWakePlanResult{}, ErrWakeTimeInPast
+	}
+
+	return o.scheduleWakePlan(ctx, wakeAt)
 }
 
 func (o *Orchestrator) Status(ctx context.Context) (StatusResult, error) {
@@ -183,6 +197,24 @@ func (o *Orchestrator) CreateTestPrintJob(ctx context.Context) (TestPrintResult,
 	return TestPrintResult{
 		PrintJob: job,
 	}, nil
+}
+
+func (o *Orchestrator) scheduleWakePlan(ctx context.Context, wakeAt time.Time) (storage.ScheduleWakePlanResult, error) {
+	wakeAt = wakeAt.UTC()
+
+	prepareAt := wakeAt.Add(-o.cfg.PrepareBefore)
+	finalDeadlineAt := wakeAt.Add(o.cfg.FinalDeadlineAfter)
+
+	return o.store.ScheduleWakePlan(ctx, storage.ScheduleWakePlanInput{
+		UserID: o.cfg.UserID,
+
+		Date:            dateOnlyUTC(wakeAt, o.cfg.Timezone),
+		WakeAt:          wakeAt,
+		PrepareAt:       prepareAt,
+		FinalDeadlineAt: finalDeadlineAt,
+
+		Source: storage.WakePlanSourceTelegram,
+	})
 }
 
 func (o *Orchestrator) ensureUser(ctx context.Context, telegramUserID *int64) error {

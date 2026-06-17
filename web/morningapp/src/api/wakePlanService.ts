@@ -10,7 +10,5 @@ export interface WakePlanService {
         input: SaveWakePlanInput,
     ): Promise<WakePlan>;
 
-    cancel(
-        wakePlanId: number,
-    ): Promise<void>;
+    cancel(): Promise<void>;
 }

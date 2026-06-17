@@ -3,14 +3,12 @@ import type {
   WakePlan,
 } from "../model/wakePlan";
 import {
-  getDefaultHttpErrorMessage,
-  HttpError,
-  isHttpError,
-} from "./httpError";
-import {
   httpClient,
   type HttpClient,
 } from "./httpClient";
+import {
+  isHttpError,
+} from "./httpError";
 import type {
   WakePlanService,
 } from "./wakePlanService";
@@ -20,10 +18,10 @@ import {
 } from "./wakePlanDto";
 
 const CURRENT_WAKE_PLAN_PATH =
-  "/api/v1/wake-plan";
+    "/api/v1/wake-plan";
 
 export class HttpWakePlanService
-  implements WakePlanService
+    implements WakePlanService
 {
   private readonly client: HttpClient;
 
@@ -32,18 +30,18 @@ export class HttpWakePlanService
   }
 
   async getCurrent():
-    Promise<WakePlan | null> {
+      Promise<WakePlan | null> {
     try {
       const response =
-        await this.client.get<unknown>(
-          CURRENT_WAKE_PLAN_PATH,
-        );
+          await this.client.get<unknown>(
+              CURRENT_WAKE_PLAN_PATH,
+          );
 
       return parseWakePlanDto(response);
     } catch (error) {
       if (
-        isHttpError(error) &&
-        error.kind === "not_found"
+          isHttpError(error) &&
+          error.kind === "not_found"
       ) {
         return null;
       }
@@ -53,49 +51,26 @@ export class HttpWakePlanService
   }
 
   async save(
-    input: SaveWakePlanInput,
+      input: SaveWakePlanInput,
   ): Promise<WakePlan> {
     const request =
-      toSaveWakePlanRequestDto(input);
+        toSaveWakePlanRequestDto(input);
 
     const response =
-      await this.client.put<unknown>(
-        CURRENT_WAKE_PLAN_PATH,
-        request,
-      );
+        await this.client.put<unknown>(
+            CURRENT_WAKE_PLAN_PATH,
+            request,
+        );
 
     return parseWakePlanDto(response);
   }
 
-  async cancel(
-    wakePlanId: number,
-  ): Promise<void> {
-    validateWakePlanId(wakePlanId);
-
+  async cancel(): Promise<void> {
     await this.client.delete(
-      `${CURRENT_WAKE_PLAN_PATH}/${wakePlanId}`,
-);
-}
+        CURRENT_WAKE_PLAN_PATH,
+    );
+  }
 }
 
 export const httpWakePlanService =
     new HttpWakePlanService(httpClient);
-
-function validateWakePlanId(
-    wakePlanId: number,
-): void {
-    if (
-        Number.isSafeInteger(wakePlanId) &&
-        wakePlanId > 0
-    ) {
-        return;
-    }
-
-    throw new HttpError({
-        kind: "validation",
-        message:
-            getDefaultHttpErrorMessage(
-                "validation",
-            ),
-    });
-}

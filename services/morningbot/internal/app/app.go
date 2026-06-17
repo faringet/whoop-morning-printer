@@ -11,6 +11,7 @@ import (
 	"github.com/faringet/whoop-morning-printer/services/morningbot/config"
 	"github.com/faringet/whoop-morning-printer/services/morningbot/internal/botapi"
 	"github.com/faringet/whoop-morning-printer/services/morningbot/internal/bottext"
+	"github.com/faringet/whoop-morning-printer/services/morningbot/internal/httpapi"
 	"github.com/faringet/whoop-morning-printer/services/morningbot/internal/orchestrator"
 	"github.com/faringet/whoop-morning-printer/services/morningbot/internal/storage"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -23,6 +24,12 @@ type App struct {
 	store        storage.Store
 	bot          *botapi.Client
 	orchestrator *orchestrator.Orchestrator
+	httpServer   *httpapi.Server
+}
+
+type runResult struct {
+	component string
+	err       error
 }
 
 func New(cfg *config.Config, log *slog.Logger) (*App, error) {
@@ -64,13 +71,53 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		return nil, fmt.Errorf("create orchestrator: %w", err)
 	}
 
+	httpServer, err := newHTTPServer(cfg, orch, rootLog)
+	if err != nil {
+		_ = st.Close()
+		return nil, fmt.Errorf("create http server: %w", err)
+	}
+
 	return &App{
 		cfg:          cfg,
 		log:          appLog,
 		store:        st,
 		bot:          bot,
 		orchestrator: orch,
+		httpServer:   httpServer,
 	}, nil
+}
+
+func newHTTPServer(cfg *config.Config, orch *orchestrator.Orchestrator, log *slog.Logger) (*httpapi.Server, error) {
+	if !cfg.HTTP.Enabled {
+		return nil, nil
+	}
+
+	handler, err := httpapi.NewHandler(orch, log)
+	if err != nil {
+		return nil, fmt.Errorf("create handler: %w", err)
+	}
+
+	auth, err := httpapi.NewAuthMiddleware(
+		cfg.TelegramBot.Token,
+		cfg.Access.AllowedUserIDs,
+		cfg.MiniApp,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create auth middleware: %w", err)
+	}
+
+	server, err := httpapi.NewServer(
+		cfg.HTTP,
+		cfg.Runtime.ShutdownTimeout,
+		handler,
+		auth,
+		log,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create server: %w", err)
+	}
+
+	return server, nil
 }
 
 func openStore(cfg *config.Config) (storage.Store, error) {
@@ -119,6 +166,8 @@ func (a *App) Run(ctx context.Context) error {
 		slog.Duration("final_deadline_after", a.cfg.MorningBot.FinalDeadlineAfter),
 		slog.Int("allowed_user_ids_count", len(a.cfg.Access.AllowedUserIDs)),
 		slog.Int("allowed_chat_ids_count", len(a.cfg.Access.AllowedChatIDs)),
+		slog.Bool("http_enabled", a.cfg.HTTP.Enabled),
+		slog.String("http_addr", a.cfg.HTTP.Addr),
 	)
 
 	if len(a.cfg.Access.AllowedUserIDs) == 0 && len(a.cfg.Access.AllowedChatIDs) == 0 {
@@ -129,7 +178,64 @@ func (a *App) Run(ctx context.Context) error {
 		return err
 	}
 
-	return a.bot.Listen(ctx, a.handleUpdate)
+	if a.httpServer == nil {
+		return a.bot.Listen(ctx, a.handleUpdate)
+	}
+
+	return a.runTransports(ctx)
+}
+
+func (a *App) runTransports(ctx context.Context) error {
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	results := make(chan runResult, 2)
+
+	go func() {
+		results <- runResult{
+			component: "telegram polling",
+			err:       a.bot.Listen(runCtx, a.handleUpdate),
+		}
+	}()
+
+	go func() {
+		results <- runResult{
+			component: "http server",
+			err:       a.httpServer.Run(runCtx),
+		}
+	}()
+
+	first := <-results
+	cancel()
+
+	second := <-results
+
+	return resolveRunResults(ctx, first, second)
+}
+
+func resolveRunResults(ctx context.Context, results ...runResult) error {
+	for _, result := range results {
+		if result.err == nil {
+			continue
+		}
+		if errors.Is(result.err, context.Canceled) || errors.Is(result.err, context.DeadlineExceeded) {
+			continue
+		}
+
+		return fmt.Errorf("%s: %w", result.component, result.err)
+	}
+
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	for _, result := range results {
+		if result.err == nil {
+			return fmt.Errorf("%s stopped unexpectedly", result.component)
+		}
+	}
+
+	return nil
 }
 
 func (a *App) handleUpdate(ctx context.Context, update tgbotapi.Update) error {

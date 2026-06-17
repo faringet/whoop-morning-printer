@@ -2,13 +2,13 @@ import type { WakePlanService } from "../api/wakePlanService";
 import type {
     SaveWakePlanInput,
     WakePlan,
+    WakePlanSource,
     WakePlanStatus,
 } from "../model/wakePlan";
 
 const MOCK_USER_ID = 1;
-const MAC_PRE_WAKE_MINUTES = 20;
-const FINAL_REPORT_DELAY_MINUTES = 90;
-
+const PREPARE_BEFORE_MINUTES = 5;
+const FINAL_DEADLINE_AFTER_MINUTES = 90;
 const MOCK_REQUEST_DELAY_MS = 650;
 
 const STORAGE_KEY =
@@ -20,7 +20,20 @@ const MOCK_ERROR_QUERY_PARAMETER =
 const MOCK_ONCE_SESSION_KEY_PREFIX =
     "wmp.morningapp.mock.error-once";
 
-type MockOperation = | "load" | "save" | "cancel"; type OneTimeMockErrorMode = | "load-once" | "save-once" | "cancel-once"; type MockErrorMode = | MockOperation | OneTimeMockErrorMode | "all";
+type MockOperation =
+    | "load"
+    | "save"
+    | "cancel";
+
+type OneTimeMockErrorMode =
+    | "load-once"
+    | "save-once"
+    | "cancel-once";
+
+type MockErrorMode =
+    | MockOperation
+    | OneTimeMockErrorMode
+    | "all";
 
 export class MockWakePlanService
     implements WakePlanService
@@ -43,7 +56,8 @@ export class MockWakePlanService
             readWakePlanFromStorage();
     }
 
-    async getCurrent(): Promise<WakePlan | null> {
+    async getCurrent():
+        Promise<WakePlan | null> {
         await simulateRequestDelay();
 
         throwMockErrorIfRequested(
@@ -81,19 +95,20 @@ export class MockWakePlanService
 
             wakeAt: input.wakeAt,
 
-            macWakeAt: addMinutes(
+            prepareAt: addMinutes(
                 input.wakeAt,
-                -MAC_PRE_WAKE_MINUTES,
+                -PREPARE_BEFORE_MINUTES,
             ),
 
             firstReceiptAt: input.wakeAt,
 
-            finalReportAt: addMinutes(
+            finalDeadlineAt: addMinutes(
                 input.wakeAt,
-                FINAL_REPORT_DELAY_MINUTES,
+                FINAL_DEADLINE_AFTER_MINUTES,
             ),
 
             status: "scheduled",
+            source: "telegram",
 
             createdAt:
                 this.currentWakePlan?.createdAt ??
@@ -109,9 +124,7 @@ export class MockWakePlanService
         return cloneRequiredWakePlan(wakePlan);
     }
 
-    async cancel(
-        wakePlanId: number,
-    ): Promise<void> {
+    async cancel(): Promise<void> {
         await simulateRequestDelay();
 
         throwMockErrorIfRequested(
@@ -121,12 +134,6 @@ export class MockWakePlanService
 
         if (!this.currentWakePlan) {
             return;
-        }
-
-        if (this.currentWakePlan.id !== wakePlanId) {
-            throw new Error(
-                `Wake plan ${wakePlanId} was not found`,
-            );
         }
 
         this.currentWakePlan = null;
@@ -141,9 +148,7 @@ export const mockWakePlanService =
 function validateWakeAt(
     wakeAt: string,
 ): void {
-    const date = new Date(wakeAt);
-
-    if (Number.isNaN(date.getTime())) {
+    if (!isValidDateString(wakeAt)) {
         throw new Error(
             `Invalid wake time: ${wakeAt}`,
         );
@@ -171,7 +176,8 @@ function createMockWakePlanId(): number {
     return Date.now();
 }
 
-function simulateRequestDelay(): Promise<void> {
+function simulateRequestDelay():
+    Promise<void> {
     return new Promise((resolve) => {
         window.setTimeout(
             resolve,
@@ -228,7 +234,8 @@ function persistWakePlan(
     }
 }
 
-function readWakePlanFromStorage(): WakePlan | null {
+function readWakePlanFromStorage():
+    WakePlan | null {
     const storage = getLocalStorage();
 
     if (!storage) {
@@ -247,13 +254,18 @@ function readWakePlanFromStorage(): WakePlan | null {
         const parsed: unknown =
             JSON.parse(value);
 
-        if (!isWakePlan(parsed)) {
+        const wakePlan =
+            normalizeStoredWakePlan(parsed);
+
+        if (!wakePlan) {
             storage.removeItem(STORAGE_KEY);
 
             return null;
         }
 
-        return cloneRequiredWakePlan(parsed);
+        persistWakePlan(wakePlan);
+
+        return cloneRequiredWakePlan(wakePlan);
     } catch (error) {
         console.warn(
             "Failed to read mock wake plan",
@@ -263,14 +275,124 @@ function readWakePlanFromStorage(): WakePlan | null {
         try {
             storage.removeItem(STORAGE_KEY);
         } catch {
-            // Storage can be unavailable or blocked.
+            return null;
         }
 
         return null;
     }
 }
 
-function getLocalStorage(): Storage | null {
+function normalizeStoredWakePlan(
+    value: unknown,
+): WakePlan | null {
+    if (
+        typeof value !== "object" ||
+        value === null ||
+        Array.isArray(value)
+    ) {
+        return null;
+    }
+
+    const candidate =
+        value as Record<string, unknown>;
+
+    const id = candidate.id;
+    const userId = candidate.userId;
+    const wakeAt = candidate.wakeAt;
+    const status = candidate.status;
+    const createdAt = candidate.createdAt;
+    const updatedAt = candidate.updatedAt;
+
+    if (
+        typeof id !== "number" ||
+        !Number.isSafeInteger(id) ||
+        id <= 0 ||
+        typeof userId !== "number" ||
+        !Number.isSafeInteger(userId) ||
+        userId <= 0 ||
+        typeof wakeAt !== "string" ||
+        !isValidDateString(wakeAt) ||
+        !isWakePlanStatus(status) ||
+        typeof createdAt !== "string" ||
+        !isValidDateString(createdAt) ||
+        typeof updatedAt !== "string" ||
+        !isValidDateString(updatedAt)
+    ) {
+        return null;
+    }
+
+    const prepareAt =
+        readValidDateString(
+            candidate.prepareAt,
+        ) ??
+        readValidDateString(
+            candidate.macWakeAt,
+        ) ??
+        addMinutes(
+            wakeAt,
+            -PREPARE_BEFORE_MINUTES,
+        );
+
+    const firstReceiptAt =
+        readValidDateString(
+            candidate.firstReceiptAt,
+        ) ??
+        wakeAt;
+
+    const finalDeadlineAt =
+        readValidDateString(
+            candidate.finalDeadlineAt,
+        ) ??
+        readValidDateString(
+            candidate.finalReportAt,
+        ) ??
+        addMinutes(
+            wakeAt,
+            FINAL_DEADLINE_AFTER_MINUTES,
+        );
+
+    const source =
+        isWakePlanSource(candidate.source)
+            ? candidate.source
+            : "telegram";
+
+    return {
+        id,
+        userId,
+        wakeAt,
+        prepareAt,
+        firstReceiptAt,
+        finalDeadlineAt,
+        status,
+        source,
+        createdAt,
+        updatedAt,
+    };
+}
+
+function readValidDateString(
+    value: unknown,
+): string | null {
+    if (
+        typeof value !== "string" ||
+        !isValidDateString(value)
+    ) {
+        return null;
+    }
+
+    return value;
+}
+
+function isValidDateString(
+    value: string,
+): boolean {
+    return !Number.isNaN(
+        new Date(value).getTime(),
+    );
+}
+
+function getLocalStorage():
+    Storage | null {
     if (typeof window === "undefined") {
         return null;
     }
@@ -282,7 +404,8 @@ function getLocalStorage(): Storage | null {
     }
 }
 
-function getSessionStorage(): Storage | null {
+function getSessionStorage():
+    Storage | null {
     if (typeof window === "undefined") {
         return null;
     }
@@ -305,9 +428,49 @@ function throwMockErrorIfRequested(
     throw new Error(message);
 }
 
-function shouldFailMockOperation( operation: MockOperation, ): boolean {  if (!import.meta.env.DEV) { return false; } const mode = getMockErrorMode(); if (!mode) { return false; } if ( mode === "all" || mode === operation ) { return true; } if (!isOneTimeMockErrorMode(mode)) { return false; } if (mode !== `${operation}-once`) { return false; } return consumeOneTimeFailure(mode); } function isOneTimeMockErrorMode( mode: MockErrorMode, ): mode is OneTimeMockErrorMode { return ( mode === "load-once" || mode === "save-once" || mode === "cancel-once" ); }
+function shouldFailMockOperation(
+    operation: MockOperation,
+): boolean {
+    if (!import.meta.env.DEV) {
+        return false;
+    }
 
-function getMockErrorMode(): MockErrorMode | null {
+    const mode = getMockErrorMode();
+
+    if (!mode) {
+        return false;
+    }
+
+    if (
+        mode === "all" ||
+        mode === operation
+    ) {
+        return true;
+    }
+
+    if (!isOneTimeMockErrorMode(mode)) {
+        return false;
+    }
+
+    if (mode !== `${operation}-once`) {
+        return false;
+    }
+
+    return consumeOneTimeFailure(mode);
+}
+
+function isOneTimeMockErrorMode(
+    mode: MockErrorMode,
+): mode is OneTimeMockErrorMode {
+    return (
+        mode === "load-once" ||
+        mode === "save-once" ||
+        mode === "cancel-once"
+    );
+}
+
+function getMockErrorMode():
+    MockErrorMode | null {
     if (typeof window === "undefined") {
         return null;
     }
@@ -336,7 +499,6 @@ function consumeOneTimeFailure(
 ): boolean {
     const storage = getSessionStorage();
 
-
     if (!storage) {
         return true;
     }
@@ -345,7 +507,9 @@ function consumeOneTimeFailure(
         `${MOCK_ONCE_SESSION_KEY_PREFIX}.${mode}`;
 
     try {
-        if (storage.getItem(key) === "consumed") {
+        if (
+            storage.getItem(key) === "consumed"
+        ) {
             return false;
         }
 
@@ -357,40 +521,31 @@ function consumeOneTimeFailure(
     }
 }
 
-function isWakePlan(
-    value: unknown,
-): value is WakePlan {
-    if (
-        typeof value !== "object" ||
-        value === null
-    ) {
-        return false;
-    }
-
-    const candidate =
-        value as Partial<WakePlan>;
-
-    return (
-        typeof candidate.id === "number" &&
-        typeof candidate.userId === "number" &&
-        typeof candidate.wakeAt === "string" &&
-        typeof candidate.macWakeAt === "string" &&
-        typeof candidate.firstReceiptAt === "string" &&
-        typeof candidate.finalReportAt === "string" &&
-        isWakePlanStatus(candidate.status) &&
-        typeof candidate.createdAt === "string" &&
-        typeof candidate.updatedAt === "string"
-    );
-}
-
 function isWakePlanStatus(
     value: unknown,
 ): value is WakePlanStatus {
     return (
         value === "scheduled" ||
-        value === "processing" ||
-        value === "completed" ||
+        value === "wake_receipt_ready" ||
+        value === "wake_receipt_printed" ||
+        value === "waiting_whoop" ||
+        value === "waiting_advice" ||
+        value === "final_report_ready" ||
+        value === "final_report_printed" ||
+        value === "fallback_printed" ||
+        value === "done" ||
         value === "cancelled" ||
         value === "failed"
+    );
+}
+
+function isWakePlanSource(
+    value: unknown,
+): value is WakePlanSource {
+    return (
+        value === "manual" ||
+        value === "telegram" ||
+        value === "default" ||
+        value === "test"
     );
 }

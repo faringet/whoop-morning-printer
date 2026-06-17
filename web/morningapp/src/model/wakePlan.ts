@@ -1,60 +1,72 @@
 export type WakePlanStatus =
   | "scheduled"
-  | "processing"
-  | "completed"
+  | "wake_receipt_ready"
+  | "wake_receipt_printed"
+  | "waiting_whoop"
+  | "waiting_advice"
+  | "final_report_ready"
+  | "final_report_printed"
+  | "fallback_printed"
+  | "done"
   | "cancelled"
   | "failed";
 
-export type WakePlan = {
+export type WakePlanSource =
+  | "manual"
+  | "telegram"
+  | "default"
+  | "test";
+
+export type WakePlan = Readonly<{
   id: number;
   userId: number;
 
   wakeAt: string;
-  macWakeAt: string;
+  prepareAt: string;
   firstReceiptAt: string;
-  finalReportAt: string;
+  finalDeadlineAt: string;
 
   status: WakePlanStatus;
+  source: WakePlanSource;
 
   createdAt: string;
   updatedAt: string;
-};
+}>;
 
-/*
- * Пользователь выбирает только дату и время пробуждения.
- *
- * Остальные значения:
- * - macWakeAt;
- * - firstReceiptAt;
- * - finalReportAt;
- *
- * рассчитывает backend на основании системного конфига.
- */
-export type SaveWakePlanInput = {
+export type SaveWakePlanInput = Readonly<{
   wakeAt: string;
-};
-
-export function isActiveWakePlan(
-  wakePlan: WakePlan,
-): boolean {
-  return (
-    wakePlan.status === "scheduled" ||
-    wakePlan.status === "processing"
-  );
-}
+}>;
 
 export function wakePlanStatusLabel(
   status: WakePlanStatus,
 ): string {
   switch (status) {
     case "scheduled":
-      return "Armed";
+      return "Scheduled";
 
-    case "processing":
-      return "Processing";
+    case "wake_receipt_ready":
+      return "Wake receipt ready";
 
-    case "completed":
-      return "Completed";
+    case "wake_receipt_printed":
+      return "Wake receipt printed";
+
+    case "waiting_whoop":
+      return "Waiting for WHOOP";
+
+    case "waiting_advice":
+      return "Waiting for advice";
+
+    case "final_report_ready":
+      return "Final report ready";
+
+    case "final_report_printed":
+      return "Final report printed";
+
+    case "fallback_printed":
+      return "Fallback printed";
+
+    case "done":
+      return "Done";
 
     case "cancelled":
       return "Cancelled";
