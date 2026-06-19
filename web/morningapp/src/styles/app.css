@@ -426,3 +426,7 @@
 html[data-telegram-environment="telegram"] .app-shell {
     padding-top: 112px !important;
 }
+
+.panel::after {
+    display: none !important;
+}
