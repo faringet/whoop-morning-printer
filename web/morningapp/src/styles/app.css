@@ -8,7 +8,6 @@
     min-height: 100dvh;
     box-sizing: border-box;
     flex-direction: column;
-    padding-top: 64px;
     padding-bottom:
             calc(
                     var(--safe-area-bottom, 0px) +
@@ -422,4 +421,8 @@
     .system-status--error .system-status__dot {
         animation: none;
     }
+}
+
+html[data-telegram-environment="telegram"] .app-shell {
+    padding-top: 112px !important;
 }
