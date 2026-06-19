@@ -1,0 +1,257 @@
+    /*
+     * Wake plan loading error panel
+     */
+
+.error-wake-panel {
+    position: relative;
+    display: grid;
+    gap: var(--space-6);
+    padding: var(--space-6);
+    overflow: hidden;
+    border-color: rgb(255 121 114 / 52%);
+    background:
+            linear-gradient(
+                    180deg,
+                    rgb(255 121 114 / 6%),
+                    transparent 42%
+            ),
+            var(--color-surface);
+    box-shadow:
+            var(--shadow-panel),
+            0 0 10px rgb(255 121 114 / 18%),
+            0 0 28px rgb(255 121 114 / 8%);
+}
+
+.error-wake-panel::after {
+    position: absolute;
+    z-index: 0;
+    top: 16px;
+    right: 16px;
+    width: 24px;
+    height: 24px;
+    pointer-events: none;
+    content: "";
+    border-top: 1px solid var(--color-danger);
+    border-right: 1px solid var(--color-danger);
+    opacity: 0.38;
+}
+
+/*
+ * Error signal
+ */
+
+.error-wake-panel__signal {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-danger);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    letter-spacing: var(--letter-spacing-terminal);
+    text-transform: uppercase;
+}
+
+.error-wake-panel__signal-dot {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 8px;
+    border-radius: 50%;
+    background: var(--color-danger);
+    box-shadow:
+            0 0 8px rgb(255 121 114 / 72%),
+            0 0 20px rgb(255 121 114 / 30%);
+    animation:
+            error-signal-pulse
+            1.8s
+            ease-in-out
+            infinite;
+}
+
+/*
+ * Main message
+ */
+
+.error-wake-panel__content {
+    position: relative;
+    z-index: 1;
+    padding-block: var(--space-4);
+    text-align: center;
+}
+
+.error-wake-panel__title {
+    margin-top: var(--space-3);
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    line-height: var(--line-height-compact);
+    letter-spacing: var(--letter-spacing-wide);
+    text-transform: uppercase;
+}
+
+.error-wake-panel__description {
+    max-width: 360px;
+    margin:
+            var(--space-4)
+            auto
+            0;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed);
+}
+
+/*
+ * Terminal state
+ */
+
+.error-wake-panel__terminal {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: var(--space-3);
+    padding-block: var(--space-5);
+    border-top: 1px solid var(--border-color-subtle);
+    border-bottom: 1px solid var(--border-color-subtle);
+    font-family: var(--font-mono);
+}
+
+.error-wake-panel__terminal-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    font-size: var(--font-size-sm);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.error-wake-panel__terminal-line span {
+    color: var(--color-text-muted);
+}
+
+.error-wake-panel__terminal-line strong {
+    flex-shrink: 0;
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.error-wake-panel__terminal-line:first-child strong {
+    color: var(--color-danger);
+}
+
+.error-wake-panel__terminal-line:nth-child(2) strong {
+    color: var(--color-warning);
+}
+
+.error-wake-panel__terminal-line:nth-child(3) strong {
+    color: var(--color-cyan-soft);
+}
+
+/*
+ * Retry action
+ */
+
+.error-wake-panel__button {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+}
+
+.error-wake-panel__button:disabled {
+    cursor: wait;
+    opacity: 0.5;
+    transform: none;
+    box-shadow: none;
+}
+
+/*
+ * Entry animation
+ */
+
+.error-wake-panel {
+    animation:
+            error-panel-enter
+            var(--duration-slow)
+            var(--ease-enter)
+            both;
+}
+
+@keyframes error-panel-enter {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes error-signal-pulse {
+    0%,
+    100% {
+        opacity: 0.62;
+        transform: scale(0.92);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/*
+ * Small screens
+ */
+
+@media (max-width: 420px) {
+    .error-wake-panel {
+        gap: var(--space-5);
+        padding:
+                var(--space-5)
+                var(--space-4);
+    }
+
+    .error-wake-panel__content {
+        padding-block: var(--space-3);
+    }
+
+    .error-wake-panel__title {
+        font-size: var(--font-size-xl);
+    }
+
+    .error-wake-panel__description {
+        font-size: var(--font-size-xs);
+    }
+
+    .error-wake-panel__terminal-line {
+        font-size: var(--font-size-xs);
+    }
+}
+
+/*
+ * Desktop preview
+ */
+
+@media (min-width: 760px) {
+    .error-wake-panel {
+        padding: var(--space-8);
+    }
+}
+
+/*
+ * Reduced motion
+ */
+
+@media (prefers-reduced-motion: reduce) {
+    .error-wake-panel,
+    .error-wake-panel__signal-dot {
+        animation: none;
+    }
+}

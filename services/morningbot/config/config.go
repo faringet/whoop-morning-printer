@@ -3,6 +3,9 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +21,8 @@ type Config struct {
 
 	Access     Access     `mapstructure:"access"`
 	MorningBot MorningBot `mapstructure:"morningbot"`
+	HTTP       HTTP       `mapstructure:"http"`
+	MiniApp    MiniApp    `mapstructure:"mini_app"`
 }
 
 type Access struct {
@@ -115,6 +120,120 @@ func (m *MorningBot) Validate() error {
 	return nil
 }
 
+type HTTP struct {
+	Enabled bool   `mapstructure:"enabled"`
+	Addr    string `mapstructure:"addr"`
+
+	ReadHeaderTimeout time.Duration `mapstructure:"read_header_timeout"`
+	ReadTimeout       time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout      time.Duration `mapstructure:"write_timeout"`
+	IdleTimeout       time.Duration `mapstructure:"idle_timeout"`
+
+	AllowedOrigins []string `mapstructure:"allowed_origins"`
+}
+
+func (h *HTTP) setDefaults() {
+	h.Addr = strings.TrimSpace(h.Addr)
+	if h.Addr == "" {
+		h.Addr = "127.0.0.1:8086"
+	}
+
+	if h.ReadHeaderTimeout <= 0 {
+		h.ReadHeaderTimeout = 5 * time.Second
+	}
+	if h.ReadTimeout <= 0 {
+		h.ReadTimeout = 10 * time.Second
+	}
+	if h.WriteTimeout <= 0 {
+		h.WriteTimeout = 10 * time.Second
+	}
+	if h.IdleTimeout <= 0 {
+		h.IdleTimeout = 60 * time.Second
+	}
+
+	for i := range h.AllowedOrigins {
+		h.AllowedOrigins[i] = strings.TrimSpace(h.AllowedOrigins[i])
+	}
+}
+
+func (h *HTTP) Validate() error {
+	if h == nil {
+		return errors.New("http config is nil")
+	}
+	if !h.Enabled {
+		return nil
+	}
+
+	host, portValue, err := net.SplitHostPort(h.Addr)
+	if err != nil {
+		return fmt.Errorf("http.addr is invalid: %w", err)
+	}
+
+	port, err := strconv.Atoi(portValue)
+	if err != nil || port <= 0 || port > 65535 {
+		return fmt.Errorf("http.addr contains invalid port: %q", portValue)
+	}
+
+	if strings.Contains(host, "/") {
+		return errors.New("http.addr contains invalid host")
+	}
+	if h.ReadHeaderTimeout <= 0 {
+		return errors.New("http.read_header_timeout must be > 0")
+	}
+	if h.ReadTimeout <= 0 {
+		return errors.New("http.read_timeout must be > 0")
+	}
+	if h.WriteTimeout <= 0 {
+		return errors.New("http.write_timeout must be > 0")
+	}
+	if h.IdleTimeout <= 0 {
+		return errors.New("http.idle_timeout must be > 0")
+	}
+
+	seenOrigins := make(map[string]struct{}, len(h.AllowedOrigins))
+	for _, origin := range h.AllowedOrigins {
+		if err := validateAllowedOrigin(origin); err != nil {
+			return err
+		}
+		if _, ok := seenOrigins[origin]; ok {
+			return fmt.Errorf("duplicate http.allowed_origins value: %q", origin)
+		}
+		seenOrigins[origin] = struct{}{}
+	}
+
+	return nil
+}
+
+type MiniApp struct {
+	AuthMaxAge time.Duration `mapstructure:"auth_max_age"`
+	DevAuth    DevAuth       `mapstructure:"dev_auth"`
+}
+
+type DevAuth struct {
+	Enabled        bool  `mapstructure:"enabled"`
+	TelegramUserID int64 `mapstructure:"telegram_user_id"`
+}
+
+func (m *MiniApp) setDefaults() {
+	if m.AuthMaxAge <= 0 {
+		m.AuthMaxAge = 10 * time.Minute
+	}
+}
+
+func (m *MiniApp) Validate() error {
+	if m == nil {
+		return errors.New("mini_app config is nil")
+	}
+	if m.AuthMaxAge <= 0 {
+		return errors.New("mini_app.auth_max_age must be > 0")
+	}
+	if m.DevAuth.Enabled && m.DevAuth.TelegramUserID <= 0 {
+		return errors.New("mini_app.dev_auth.telegram_user_id must be > 0")
+	}
+
+	return nil
+}
+
 func (c *Config) setDefaults() {
 	if c.Base.AppName == "" {
 		c.Base.AppName = "morningbot"
@@ -150,6 +269,8 @@ func (c *Config) setDefaults() {
 
 	c.Access.setDefaults()
 	c.MorningBot.setDefaults()
+	c.HTTP.setDefaults()
+	c.MiniApp.setDefaults()
 }
 
 func (c *Config) Validate() error {
@@ -182,6 +303,31 @@ func (c *Config) Validate() error {
 	}
 	if err := c.MorningBot.Validate(); err != nil {
 		return fmt.Errorf("morningbot: %w", err)
+	}
+	if err := c.HTTP.Validate(); err != nil {
+		return fmt.Errorf("http: %w", err)
+	}
+	if err := c.MiniApp.Validate(); err != nil {
+		return fmt.Errorf("mini_app: %w", err)
+	}
+
+	if c.HTTP.Enabled && len(c.Access.AllowedUserIDs) == 0 {
+		return errors.New("access.allowed_user_ids must not be empty when http.enabled is true")
+	}
+
+	if c.MiniApp.DevAuth.Enabled {
+		if !c.HTTP.Enabled {
+			return errors.New("mini_app.dev_auth.enabled requires http.enabled")
+		}
+		if !strings.EqualFold(strings.TrimSpace(c.Base.Env), "dev") {
+			return errors.New("mini_app.dev_auth.enabled is allowed only in dev environment")
+		}
+		if !isLoopbackAddress(c.HTTP.Addr) {
+			return errors.New("mini_app.dev_auth.enabled requires http.addr to use a loopback address")
+		}
+		if !containsInt64(c.Access.AllowedUserIDs, c.MiniApp.DevAuth.TelegramUserID) {
+			return errors.New("mini_app.dev_auth.telegram_user_id must be present in access.allowed_user_ids")
+		}
 	}
 
 	return nil
@@ -219,4 +365,58 @@ func validateWakeTime(value string) error {
 	}
 
 	return nil
+}
+
+func validateAllowedOrigin(value string) error {
+	if value == "" {
+		return errors.New("http.allowed_origins must not contain empty values")
+	}
+
+	origin, err := url.Parse(value)
+	if err != nil {
+		return fmt.Errorf("invalid http.allowed_origins value %q: %w", value, err)
+	}
+	if origin.Scheme != "http" && origin.Scheme != "https" {
+		return fmt.Errorf("http.allowed_origins value %q must use http or https", value)
+	}
+	if origin.Host == "" {
+		return fmt.Errorf("http.allowed_origins value %q must contain a host", value)
+	}
+	if origin.User != nil {
+		return fmt.Errorf("http.allowed_origins value %q must not contain user info", value)
+	}
+	if origin.Path != "" && origin.Path != "/" {
+		return fmt.Errorf("http.allowed_origins value %q must not contain a path", value)
+	}
+	if origin.RawQuery != "" || origin.Fragment != "" {
+		return fmt.Errorf("http.allowed_origins value %q must not contain query or fragment", value)
+	}
+
+	return nil
+}
+
+func isLoopbackAddress(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+
+	host = strings.TrimSpace(host)
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+
+	ip := net.ParseIP(host)
+
+	return ip != nil && ip.IsLoopback()
+}
+
+func containsInt64(items []int64, value int64) bool {
+	for _, item := range items {
+		if item == value {
+			return true
+		}
+	}
+
+	return false
 }

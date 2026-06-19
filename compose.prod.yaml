@@ -57,8 +57,31 @@ services:
     depends_on:
       migrator:
         condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${MORNINGBOT_HTTP_HOST_PORT}:8086"
     volumes:
       - ./config:/app/config:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8086/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - wmp
+
+  morningapp:
+    image: ghcr.io/${GHCR_OWNER}/whoop-morning-printer/morningapp:${IMAGE_TAG}
+    container_name: wmp-morningapp
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MORNINGAPP_HOST_PORT}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
     networks:
       - wmp
 

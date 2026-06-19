@@ -1,0 +1,186 @@
+/*
+ * Empty wake plan panel
+ */
+
+.empty-wake-panel {
+    position: relative;
+    display: grid;
+    gap: var(--space-6);
+    padding: var(--space-6);
+}
+
+.empty-wake-panel::after {
+    position: absolute;
+    z-index: 0;
+    top: 16px;
+    right: 16px;
+    width: 24px;
+    height: 24px;
+    pointer-events: none;
+    content: "";
+    border-top: 1px solid var(--color-magenta);
+    border-right: 1px solid var(--color-magenta);
+    opacity: 0.28;
+}
+
+/*
+ * Inactive signal
+ */
+
+.empty-wake-panel__signal {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    letter-spacing: var(--letter-spacing-terminal);
+    text-transform: uppercase;
+}
+
+.empty-wake-panel__signal-dot {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 8px;
+    border: 1px solid var(--color-magenta-dark);
+    border-radius: 50%;
+    background: rgb(255 79 163 / 12%);
+    box-shadow:
+            0 0 8px rgb(255 79 163 / 28%);
+}
+
+/*
+ * Main message
+ */
+
+.empty-wake-panel__content {
+    position: relative;
+    z-index: 1;
+    padding-block: var(--space-5);
+    text-align: center;
+}
+
+.empty-wake-panel__title {
+    margin-top: var(--space-3);
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    line-height: var(--line-height-compact);
+    letter-spacing: var(--letter-spacing-wide);
+    text-transform: uppercase;
+}
+
+.empty-wake-panel__description {
+    max-width: 360px;
+    margin:
+            var(--space-4)
+            auto
+            0;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed);
+}
+
+/*
+ * Terminal status block
+ */
+
+.empty-wake-panel__terminal {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: var(--space-3);
+    padding:
+            var(--space-5)
+            0;
+    border-top: 1px solid var(--border-color-subtle);
+    border-bottom: 1px solid var(--border-color-subtle);
+    font-family: var(--font-mono);
+}
+
+.empty-wake-panel__terminal-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    font-size: var(--font-size-sm);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.empty-wake-panel__terminal-line span {
+    color: var(--color-text-muted);
+}
+
+.empty-wake-panel__terminal-line strong {
+    flex-shrink: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.empty-wake-panel__terminal-line:first-child strong {
+    color: var(--color-magenta-soft);
+}
+
+.empty-wake-panel__terminal-line:nth-child(2) strong {
+    color: var(--color-cyan-soft);
+}
+
+.empty-wake-panel__terminal-line:nth-child(3) strong {
+    color: var(--color-amber-soft);
+}
+
+/*
+ * Action
+ */
+
+.empty-wake-panel__button {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+}
+
+/*
+ * Small screens
+ */
+
+@media (max-width: 420px) {
+    .empty-wake-panel {
+        gap: var(--space-5);
+        padding:
+                var(--space-5)
+                var(--space-4);
+    }
+
+    .empty-wake-panel__content {
+        padding-block: var(--space-4);
+    }
+
+    .empty-wake-panel__title {
+        font-size: var(--font-size-xl);
+    }
+
+    .empty-wake-panel__description {
+        font-size: var(--font-size-xs);
+    }
+
+    .empty-wake-panel__terminal-line {
+        font-size: var(--font-size-xs);
+    }
+}
+
+/*
+ * Desktop preview
+ */
+
+@media (min-width: 760px) {
+    .empty-wake-panel {
+        padding: var(--space-8);
+    }
+}

@@ -76,6 +76,34 @@ jobs:
       - name: Build printeragent
         run: go build ./services/printeragent/cmd/printeragent
 
+  morningapp-ci:
+    name: morningapp-ci
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: web/morningapp
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/morningapp/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
   docker-validate:
     name: docker-validate
     runs-on: ubuntu-latest
@@ -91,6 +119,7 @@ jobs:
         run: |
           cat > .env <<'EOF'
           APP_ENV=ci
+          GIN_MODE=release
 
           POSTGRES_DB=whoop_morning_printer
           POSTGRES_USER=whoop
@@ -100,6 +129,13 @@ jobs:
           IMAGE_TAG=main
 
           MORNINGBOT_TELEGRAM_BOT_TOKEN=ci_dummy_token
+          MORNINGBOT_HTTP_ENABLED=true
+          MORNINGBOT_HTTP_ADDR=:8086
+          MORNINGBOT_HTTP_HOST_PORT=18086
+          MORNINGBOT_MINI_APP_AUTH_MAX_AGE=1h
+          MORNINGBOT_MINI_APP_DEV_AUTH_ENABLED=false
+
+          MORNINGAPP_HOST_PORT=18080
 
           WHOOPSYNC_WHOOP_CLIENT_ID=ci_dummy_client_id
           WHOOPSYNC_WHOOP_CLIENT_SECRET=ci_dummy_client_secret
@@ -117,3 +153,6 @@ jobs:
 
       - name: Validate production Docker Compose config
         run: docker compose -f compose.prod.yaml config
+
+      - name: Build Morning App image
+        run: docker build -f docker/web-service.Dockerfile -t wmp-morningapp:ci .

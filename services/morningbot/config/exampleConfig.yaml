@@ -41,3 +41,40 @@ morningbot:
 
   # Сколько ждать после wake_at финальный WHOOP-отчёт.
   final_deadline_after: 90m
+
+http:
+  # при false - только tg-команды, без HTTP-сервера.
+  enabled: false
+
+  addr: "127.0.0.1:8086"
+
+  read_header_timeout: 5s
+
+  read_timeout: 10s
+
+  write_timeout: 10s
+
+  idle_timeout: 60s
+
+  # Origins, которым разрешено обращаться к API из браузера.
+  allowed_origins:
+    - "http://localhost:5173"
+
+mini_app:
+  auth_max_age: 10m
+
+  dev_auth:
+    # Локальный обход Telegram initData для запуска Mini App
+    # в обычном браузере во время разработки.
+    #
+    # Разрешён только при:
+    # - env: dev;
+    # - http.enabled: true;
+    # - HTTP-адресе на localhost/loopback;
+    # - наличии telegram_user_id в access.allowed_user_ids.
+    #
+    # В production всегда должно быть false.
+    enabled: false
+
+    # локальные HTTP-запросы при включённом dev_auth.
+    telegram_user_id: 123456789
