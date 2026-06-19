@@ -15,7 +15,7 @@ import type {
 } from "./types";
 
 export class RealTelegramBridge
-  implements TelegramBridge
+    implements TelegramBridge
 {
   readonly environment = "telegram" as const;
 
@@ -24,10 +24,10 @@ export class RealTelegramBridge
   private readonly webApp: TelegramWebAppApi;
 
   private currentBackButtonHandler:
-    TelegramBackButtonHandler | null = null;
+      TelegramBackButtonHandler | null = null;
 
   constructor(
-    webApp: TelegramWebAppApi,
+      webApp: TelegramWebAppApi,
   ) {
     this.webApp = webApp;
   }
@@ -38,8 +38,8 @@ export class RealTelegramBridge
 
   getColorScheme(): TelegramColorScheme {
     return this.webApp.colorScheme === "light"
-      ? "light"
-      : "dark";
+        ? "light"
+        : "dark";
   }
 
   getThemeParams(): TelegramThemeParams {
@@ -50,280 +50,304 @@ export class RealTelegramBridge
 
   getSafeAreaInset(): TelegramSafeAreaInset {
     return normalizeSafeAreaInset(
-      this.webApp.safeAreaInset,
+        this.webApp.safeAreaInset,
     );
   }
 
   getContentSafeAreaInset():
-    TelegramSafeAreaInset {
+      TelegramSafeAreaInset {
     return normalizeSafeAreaInset(
-      this.webApp.contentSafeAreaInset,
+        this.webApp.contentSafeAreaInset,
     );
   }
 
   ready(): void {
     runTelegramAction(
-      "ready",
-      () => {
-        this.webApp.ready();
-      },
+        "ready",
+        () => {
+          this.webApp.ready();
+        },
     );
   }
 
   expand(): void {
     runTelegramAction(
-      "expand",
-      () => {
-        this.webApp.expand();
-      },
+        "expand",
+        () => {
+          this.webApp.expand();
+        },
+    );
+  }
+
+  requestFullscreen(): void {
+    if (!this.webApp.requestFullscreen) {
+      return;
+    }
+
+    if (this.webApp.isFullscreen) {
+      return;
+    }
+
+    if (
+        this.webApp.isVersionAtLeast &&
+        !this.webApp.isVersionAtLeast("8.0")
+    ) {
+      return;
+    }
+
+    runTelegramAction(
+        "requestFullscreen",
+        () => {
+          this.webApp.requestFullscreen?.();
+        },
     );
   }
 
   close(): void {
     runTelegramAction(
-      "close",
-      () => {
-        this.webApp.close();
-      },
+        "close",
+        () => {
+          this.webApp.close();
+        },
     );
   }
 
   setHeaderColor(
-    color: string,
+      color: string,
   ): void {
     if (!this.webApp.setHeaderColor) {
       return;
     }
 
     runTelegramAction(
-      "setHeaderColor",
-      () => {
-        this.webApp.setHeaderColor?.(
-          color,
-        );
-      },
+        "setHeaderColor",
+        () => {
+          this.webApp.setHeaderColor?.(
+              color,
+          );
+        },
     );
   }
 
   setBackgroundColor(
-    color: string,
+      color: string,
   ): void {
     if (!this.webApp.setBackgroundColor) {
       return;
     }
 
     runTelegramAction(
-      "setBackgroundColor",
-      () => {
-        this.webApp.setBackgroundColor?.(
-          color,
-        );
-      },
+        "setBackgroundColor",
+        () => {
+          this.webApp.setBackgroundColor?.(
+              color,
+          );
+        },
     );
   }
 
   setBottomBarColor(
-    color: string,
+      color: string,
   ): void {
     if (!this.webApp.setBottomBarColor) {
       return;
     }
 
     runTelegramAction(
-      "setBottomBarColor",
-      () => {
-        this.webApp.setBottomBarColor?.(
-          color,
-        );
-      },
+        "setBottomBarColor",
+        () => {
+          this.webApp.setBottomBarColor?.(
+              color,
+          );
+        },
     );
   }
 
   enableClosingConfirmation(): void {
     if (
-      !this.webApp.enableClosingConfirmation
+        !this.webApp.enableClosingConfirmation
     ) {
       return;
     }
 
     runTelegramAction(
-      "enableClosingConfirmation",
-      () => {
-        this.webApp
-          .enableClosingConfirmation?.();
-      },
+        "enableClosingConfirmation",
+        () => {
+          this.webApp
+              .enableClosingConfirmation?.();
+        },
     );
   }
 
   disableClosingConfirmation(): void {
     if (
-      !this.webApp.disableClosingConfirmation
+        !this.webApp.disableClosingConfirmation
     ) {
       return;
     }
 
     runTelegramAction(
-      "disableClosingConfirmation",
-      () => {
-        this.webApp
-          .disableClosingConfirmation?.();
-      },
+        "disableClosingConfirmation",
+        () => {
+          this.webApp
+              .disableClosingConfirmation?.();
+        },
     );
   }
 
   setBackButtonHandler(
-    handler: TelegramBackButtonHandler | null,
+      handler: TelegramBackButtonHandler | null,
   ): void {
     const backButton =
-      this.webApp.BackButton;
+        this.webApp.BackButton;
 
     if (!backButton) {
       this.currentBackButtonHandler =
-        handler;
+          handler;
 
       return;
     }
 
     if (this.currentBackButtonHandler) {
       const previousHandler =
-        this.currentBackButtonHandler;
+          this.currentBackButtonHandler;
 
       runTelegramAction(
-        "BackButton.offClick",
-        () => {
-          backButton.offClick(
-            previousHandler,
-          );
-        },
+          "BackButton.offClick",
+          () => {
+            backButton.offClick(
+                previousHandler,
+            );
+          },
       );
     }
 
     this.currentBackButtonHandler =
-      handler;
+        handler;
 
     if (!handler) {
       runTelegramAction(
-        "BackButton.hide",
-        () => {
-          backButton.hide();
-        },
+          "BackButton.hide",
+          () => {
+            backButton.hide();
+          },
       );
 
       return;
     }
 
     runTelegramAction(
-      "BackButton.onClick",
-      () => {
-        backButton.onClick(handler);
-      },
+        "BackButton.onClick",
+        () => {
+          backButton.onClick(handler);
+        },
     );
 
     runTelegramAction(
-      "BackButton.show",
-      () => {
-        backButton.show();
-      },
+        "BackButton.show",
+        () => {
+          backButton.show();
+        },
     );
   }
 
   onEvent(
-    eventName: TelegramWebAppEventName,
-    handler: TelegramWebAppEventHandler,
+      eventName: TelegramWebAppEventName,
+      handler: TelegramWebAppEventHandler,
   ): void {
     if (!this.webApp.onEvent) {
       return;
     }
 
     runTelegramAction(
-      `onEvent:${eventName}`,
-      () => {
-        this.webApp.onEvent?.(
-          eventName,
-          handler,
-        );
-      },
+        `onEvent:${eventName}`,
+        () => {
+          this.webApp.onEvent?.(
+              eventName,
+              handler,
+          );
+        },
     );
   }
 
   offEvent(
-    eventName: TelegramWebAppEventName,
-    handler: TelegramWebAppEventHandler,
+      eventName: TelegramWebAppEventName,
+      handler: TelegramWebAppEventHandler,
   ): void {
     if (!this.webApp.offEvent) {
       return;
     }
 
     runTelegramAction(
-      `offEvent:${eventName}`,
-      () => {
-        this.webApp.offEvent?.(
-          eventName,
-          handler,
-        );
-      },
+        `offEvent:${eventName}`,
+        () => {
+          this.webApp.offEvent?.(
+              eventName,
+              handler,
+          );
+        },
     );
   }
 
   impactOccurred(
-    style: TelegramHapticImpactStyle,
+      style: TelegramHapticImpactStyle,
   ): void {
     const hapticFeedback =
-      this.webApp.HapticFeedback;
+        this.webApp.HapticFeedback;
 
     if (!hapticFeedback) {
       return;
     }
 
     runTelegramAction(
-      "HapticFeedback.impactOccurred",
-      () => {
-        hapticFeedback.impactOccurred(
-          style,
-        );
-      },
+        "HapticFeedback.impactOccurred",
+        () => {
+          hapticFeedback.impactOccurred(
+              style,
+          );
+        },
     );
   }
 
   notificationOccurred(
-    type: TelegramHapticNotificationType,
+      type: TelegramHapticNotificationType,
   ): void {
     const hapticFeedback =
-      this.webApp.HapticFeedback;
+        this.webApp.HapticFeedback;
 
     if (!hapticFeedback) {
       return;
     }
 
     runTelegramAction(
-      "HapticFeedback.notificationOccurred",
-      () => {
-        hapticFeedback.notificationOccurred(
-          type,
-        );
-      },
+        "HapticFeedback.notificationOccurred",
+        () => {
+          hapticFeedback.notificationOccurred(
+              type,
+          );
+        },
     );
   }
 
   selectionChanged(): void {
     const hapticFeedback =
-      this.webApp.HapticFeedback;
+        this.webApp.HapticFeedback;
 
     if (!hapticFeedback) {
       return;
     }
 
     runTelegramAction(
-      "HapticFeedback.selectionChanged",
-      () => {
-        hapticFeedback.selectionChanged();
-      },
+        "HapticFeedback.selectionChanged",
+        () => {
+          hapticFeedback.selectionChanged();
+        },
     );
   }
 }
 
 function normalizeSafeAreaInset(
-  inset: TelegramSafeAreaInset | undefined,
+    inset: TelegramSafeAreaInset | undefined,
 ): TelegramSafeAreaInset {
   if (!inset) {
     return emptySafeAreaInset;
@@ -338,7 +362,7 @@ function normalizeSafeAreaInset(
 }
 
 function normalizeInsetValue(
-  value: number,
+    value: number,
 ): number {
   if (!Number.isFinite(value)) {
     return 0;
@@ -348,15 +372,15 @@ function normalizeInsetValue(
 }
 
 function runTelegramAction(
-  actionName: string,
-  action: () => void,
+    actionName: string,
+    action: () => void,
 ): void {
   try {
     action();
   } catch (error) {
     console.warn(
-      `Telegram WebApp action failed: ${actionName}`,
-      error,
+        `Telegram WebApp action failed: ${actionName}`,
+        error,
     );
   }
 }

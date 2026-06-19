@@ -39,6 +39,8 @@ export interface TelegramBridge {
 
   expand(): void;
 
+  requestFullscreen(): void;
+
   close(): void;
 
   setHeaderColor(color: string): void;

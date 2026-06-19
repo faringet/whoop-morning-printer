@@ -14,10 +14,10 @@ import type {
 } from "./types";
 
 const emptyThemeParams: TelegramThemeParams =
-    Object.freeze({});
+  Object.freeze({});
 
 export class BrowserTelegramBridge
-    implements TelegramBridge
+  implements TelegramBridge
 {
   readonly environment = "browser" as const;
 
@@ -29,20 +29,20 @@ export class BrowserTelegramBridge
 
   getColorScheme(): TelegramColorScheme {
     if (
-        typeof window === "undefined" ||
-        typeof window.matchMedia !== "function"
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
     ) {
       return "dark";
     }
 
     const prefersLight =
-        window.matchMedia(
-            "(prefers-color-scheme: light)",
-        ).matches;
+      window.matchMedia(
+        "(prefers-color-scheme: light)",
+      ).matches;
 
     return prefersLight
-        ? "light"
-        : "dark";
+      ? "light"
+      : "dark";
   }
 
   getThemeParams(): TelegramThemeParams {
@@ -54,7 +54,7 @@ export class BrowserTelegramBridge
   }
 
   getContentSafeAreaInset():
-      TelegramSafeAreaInset {
+    TelegramSafeAreaInset {
     return emptySafeAreaInset;
   }
 
@@ -64,28 +64,28 @@ export class BrowserTelegramBridge
   expand(): void {
   }
 
+  requestFullscreen(): void {
+  }
+
   close(): void {
   }
 
   setHeaderColor(
-      color: string,
+    color: string,
   ): void {
     void color;
-
   }
 
   setBackgroundColor(
-      color: string,
+    color: string,
   ): void {
     void color;
-
   }
 
   setBottomBarColor(
-      color: string,
+    color: string,
   ): void {
     void color;
-
   }
 
   enableClosingConfirmation(): void {
@@ -95,42 +95,37 @@ export class BrowserTelegramBridge
   }
 
   setBackButtonHandler(
-      handler: TelegramBackButtonHandler | null,
+    handler: TelegramBackButtonHandler | null,
   ): void {
     void handler;
-
   }
 
   onEvent(
-      eventName: TelegramWebAppEventName,
-      handler: TelegramWebAppEventHandler,
+    eventName: TelegramWebAppEventName,
+    handler: TelegramWebAppEventHandler,
   ): void {
     void eventName;
     void handler;
-
   }
 
   offEvent(
-      eventName: TelegramWebAppEventName,
-      handler: TelegramWebAppEventHandler,
+    eventName: TelegramWebAppEventName,
+    handler: TelegramWebAppEventHandler,
   ): void {
     void eventName;
     void handler;
-
   }
 
   impactOccurred(
-      style: TelegramHapticImpactStyle,
+    style: TelegramHapticImpactStyle,
   ): void {
     void style;
-
   }
 
   notificationOccurred(
-      type: TelegramHapticNotificationType,
+    type: TelegramHapticNotificationType,
   ): void {
     void type;
-
   }
 
   selectionChanged(): void {
@@ -138,4 +133,4 @@ export class BrowserTelegramBridge
 }
 
 export const browserTelegramBridge =
-    new BrowserTelegramBridge();
+  new BrowserTelegramBridge();

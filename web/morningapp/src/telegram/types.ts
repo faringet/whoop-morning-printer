@@ -91,6 +91,8 @@ export type TelegramWebAppApi = {
     readonly colorScheme: TelegramColorScheme;
     readonly themeParams: TelegramThemeParams;
 
+    readonly isFullscreen?: boolean;
+
     readonly safeAreaInset?:
         TelegramSafeAreaInset;
 
@@ -108,6 +110,8 @@ export type TelegramWebAppApi = {
     expand(): void;
 
     close(): void;
+
+    requestFullscreen?(): void;
 
     onEvent?(
         eventType: TelegramWebAppEventName,

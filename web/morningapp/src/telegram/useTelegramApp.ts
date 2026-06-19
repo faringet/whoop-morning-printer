@@ -162,6 +162,7 @@ export function useTelegramApp():
         );
 
         telegramBridge.expand();
+        telegramBridge.requestFullscreen();
         telegramBridge.ready();
 
         return () => {
