@@ -9,6 +9,15 @@ import (
 	"github.com/faringet/whoop-morning-printer/services/printergateway/internal/storage"
 )
 
+type ServerOptions struct {
+	AgentAuthToken string
+
+	DisplayAuthToken string
+	DisplayUserID    int64
+	DisplayTimezone  string
+	DisplayLookahead time.Duration
+}
+
 type ClaimReadyPrintJobsRequest struct {
 	UserID int64 `json:"user_id"`
 
@@ -196,6 +205,54 @@ func (r GetNextWakePlanRequest) ToStorageInput() (storage.GetNextWakePlanInput, 
 
 type GetNextWakePlanResponse struct {
 	WakePlan *storage.WakePlan `json:"wake_plan"`
+}
+
+type NightDisplayStatus string
+
+const (
+	NightDisplayStatusArmed    NightDisplayStatus = "armed"
+	NightDisplayStatusNotArmed NightDisplayStatus = "not_armed"
+)
+
+type NightDisplayResponse struct {
+	Status     NightDisplayStatus    `json:"status"`
+	WakePlan   *NightDisplayWakePlan `json:"wake_plan"`
+	ServerTime time.Time             `json:"server_time"`
+	Timezone   string                `json:"timezone"`
+}
+
+type NightDisplayWakePlan struct {
+	ID        int64     `json:"id"`
+	WakeAt    time.Time `json:"wake_at"`
+	Status    string    `json:"status"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func NewNightDisplayResponse(now time.Time, timezone string, plan *storage.WakePlan) NightDisplayResponse {
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+
+	response := NightDisplayResponse{
+		Status:     NightDisplayStatusNotArmed,
+		WakePlan:   nil,
+		ServerTime: now.UTC(),
+		Timezone:   strings.TrimSpace(timezone),
+	}
+
+	if plan == nil || !plan.IsScheduled() {
+		return response
+	}
+
+	response.Status = NightDisplayStatusArmed
+	response.WakePlan = &NightDisplayWakePlan{
+		ID:        plan.ID,
+		WakeAt:    plan.WakeAt,
+		Status:    plan.Status,
+		UpdatedAt: plan.UpdatedAt,
+	}
+
+	return response
 }
 
 type PrintJobResponse struct {

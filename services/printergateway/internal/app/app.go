@@ -40,13 +40,25 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		return nil, fmt.Errorf("open store: %w", err)
 	}
 
-	authToken, err := cfg.PrinterGateway.AuthTokenValue()
+	agentAuthToken, err := cfg.PrinterGateway.AuthTokenValue()
 	if err != nil {
 		_ = st.Close()
-		return nil, fmt.Errorf("load auth token: %w", err)
+		return nil, fmt.Errorf("load agent auth token: %w", err)
 	}
 
-	apiServer, err := httpapi.NewServer(log, st, authToken)
+	displayAuthToken, err := cfg.PrinterGateway.DisplayAuthTokenValue()
+	if err != nil {
+		_ = st.Close()
+		return nil, fmt.Errorf("load display auth token: %w", err)
+	}
+
+	apiServer, err := httpapi.NewServer(log, st, httpapi.ServerOptions{
+		AgentAuthToken:   agentAuthToken,
+		DisplayAuthToken: displayAuthToken,
+		DisplayUserID:    cfg.PrinterGateway.DisplayUserID,
+		DisplayTimezone:  cfg.PrinterGateway.DisplayTimezone,
+		DisplayLookahead: cfg.PrinterGateway.DisplayLookahead,
+	})
 	if err != nil {
 		_ = st.Close()
 		return nil, fmt.Errorf("create http api server: %w", err)
@@ -69,6 +81,9 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		slog.Duration("idle_timeout", cfg.PrinterGateway.IdleTimeout),
 		slog.Int("postgres_max_open_conns", cfg.Storage.Postgres.MaxOpenConns),
 		slog.Int("postgres_max_idle_conns", cfg.Storage.Postgres.MaxIdleConns),
+		slog.Int64("display_user_id", cfg.PrinterGateway.DisplayUserID),
+		slog.String("display_timezone", cfg.PrinterGateway.DisplayTimezone),
+		slog.Duration("display_lookahead", cfg.PrinterGateway.DisplayLookahead),
 	)
 
 	return &App{

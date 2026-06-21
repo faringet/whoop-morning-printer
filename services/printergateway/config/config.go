@@ -21,9 +21,14 @@ type Config struct {
 type PrinterGateway struct {
 	HTTPAddr string `mapstructure:"http_addr"`
 
-	AuthToken string `mapstructure:"auth_token"`
-
+	AuthToken     string `mapstructure:"auth_token"`
 	AuthTokenFile string `mapstructure:"auth_token_file"`
+
+	DisplayAuthToken     string        `mapstructure:"display_auth_token"`
+	DisplayAuthTokenFile string        `mapstructure:"display_auth_token_file"`
+	DisplayUserID        int64         `mapstructure:"display_user_id"`
+	DisplayTimezone      string        `mapstructure:"display_timezone"`
+	DisplayLookahead     time.Duration `mapstructure:"display_lookahead"`
 
 	StartupTimeout time.Duration `mapstructure:"startup_timeout"`
 	PingInterval   time.Duration `mapstructure:"ping_interval"`
@@ -70,6 +75,22 @@ func (c *Config) setDefaults() {
 
 	c.PrinterGateway.AuthToken = strings.TrimSpace(c.PrinterGateway.AuthToken)
 	c.PrinterGateway.AuthTokenFile = strings.TrimSpace(c.PrinterGateway.AuthTokenFile)
+
+	c.PrinterGateway.DisplayAuthToken = strings.TrimSpace(c.PrinterGateway.DisplayAuthToken)
+	c.PrinterGateway.DisplayAuthTokenFile = strings.TrimSpace(c.PrinterGateway.DisplayAuthTokenFile)
+
+	if c.PrinterGateway.DisplayUserID <= 0 {
+		c.PrinterGateway.DisplayUserID = 1
+	}
+
+	c.PrinterGateway.DisplayTimezone = strings.TrimSpace(c.PrinterGateway.DisplayTimezone)
+	if c.PrinterGateway.DisplayTimezone == "" {
+		c.PrinterGateway.DisplayTimezone = "Europe/Moscow"
+	}
+
+	if c.PrinterGateway.DisplayLookahead <= 0 {
+		c.PrinterGateway.DisplayLookahead = 36 * time.Hour
+	}
 
 	if c.PrinterGateway.StartupTimeout <= 0 {
 		c.PrinterGateway.StartupTimeout = 60 * time.Second
@@ -118,6 +139,18 @@ func (c *Config) Validate() error {
 	if c.PrinterGateway.AuthToken == "" && c.PrinterGateway.AuthTokenFile == "" {
 		return fmt.Errorf("printergateway.auth_token or printergateway.auth_token_file is required")
 	}
+	if c.PrinterGateway.DisplayAuthToken == "" && c.PrinterGateway.DisplayAuthTokenFile == "" {
+		return fmt.Errorf("printergateway.display_auth_token or printergateway.display_auth_token_file is required")
+	}
+	if c.PrinterGateway.DisplayUserID <= 0 {
+		return fmt.Errorf("printergateway.display_user_id must be > 0")
+	}
+	if _, err := time.LoadLocation(c.PrinterGateway.DisplayTimezone); err != nil {
+		return fmt.Errorf("printergateway.display_timezone is invalid: %w", err)
+	}
+	if c.PrinterGateway.DisplayLookahead <= 0 {
+		return fmt.Errorf("printergateway.display_lookahead must be > 0")
+	}
 	if c.PrinterGateway.StartupTimeout <= 0 {
 		return fmt.Errorf("printergateway.startup_timeout must be > 0")
 	}
@@ -141,24 +174,47 @@ func (c *Config) Validate() error {
 }
 
 func (g PrinterGateway) AuthTokenValue() (string, error) {
-	token := strings.TrimSpace(g.AuthToken)
+	return tokenValue(
+		"printergateway.auth_token",
+		"printergateway.auth_token_file",
+		g.AuthToken,
+		g.AuthTokenFile,
+	)
+}
+
+func (g PrinterGateway) DisplayAuthTokenValue() (string, error) {
+	return tokenValue(
+		"printergateway.display_auth_token",
+		"printergateway.display_auth_token_file",
+		g.DisplayAuthToken,
+		g.DisplayAuthTokenFile,
+	)
+}
+
+func tokenValue(
+	tokenName string,
+	tokenFileName string,
+	tokenValue string,
+	tokenFileValue string,
+) (string, error) {
+	token := strings.TrimSpace(tokenValue)
 	if token != "" {
 		return token, nil
 	}
 
-	tokenFile := strings.TrimSpace(g.AuthTokenFile)
+	tokenFile := strings.TrimSpace(tokenFileValue)
 	if tokenFile == "" {
-		return "", fmt.Errorf("printergateway.auth_token or printergateway.auth_token_file is required")
+		return "", fmt.Errorf("%s or %s is required", tokenName, tokenFileName)
 	}
 
 	data, err := os.ReadFile(tokenFile)
 	if err != nil {
-		return "", fmt.Errorf("read printergateway auth token file %q: %w", tokenFile, err)
+		return "", fmt.Errorf("read %s %q: %w", tokenFileName, tokenFile, err)
 	}
 
 	token = strings.TrimSpace(string(data))
 	if token == "" {
-		return "", fmt.Errorf("printergateway auth token file %q is empty", tokenFile)
+		return "", fmt.Errorf("%s %q is empty", tokenFileName, tokenFile)
 	}
 
 	return token, nil
