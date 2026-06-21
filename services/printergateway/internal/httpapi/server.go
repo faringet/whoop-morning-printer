@@ -16,13 +16,20 @@ import (
 )
 
 type Server struct {
-	log       *slog.Logger
-	store     storage.Store
-	authToken string
-	router    *gin.Engine
+	log   *slog.Logger
+	store storage.Store
+
+	agentAuthToken   string
+	displayAuthToken string
+
+	displayUserID    int64
+	displayTimezone  string
+	displayLookahead time.Duration
+
+	router *gin.Engine
 }
 
-func NewServer(log *slog.Logger, store storage.Store, authToken string) (*Server, error) {
+func NewServer(log *slog.Logger, store storage.Store, opts ServerOptions) (*Server, error) {
 	if log == nil {
 		log = slog.Default()
 	}
@@ -30,9 +37,27 @@ func NewServer(log *slog.Logger, store storage.Store, authToken string) (*Server
 		return nil, errors.New("printergateway httpapi: store is nil")
 	}
 
-	authToken = strings.TrimSpace(authToken)
-	if authToken == "" {
-		return nil, errors.New("printergateway httpapi: auth token is required")
+	agentAuthToken := strings.TrimSpace(opts.AgentAuthToken)
+	if agentAuthToken == "" {
+		return nil, errors.New("printergateway httpapi: agent auth token is required")
+	}
+
+	displayAuthToken := strings.TrimSpace(opts.DisplayAuthToken)
+	if displayAuthToken == "" {
+		return nil, errors.New("printergateway httpapi: display auth token is required")
+	}
+
+	if opts.DisplayUserID <= 0 {
+		return nil, errors.New("printergateway httpapi: display user id must be > 0")
+	}
+
+	displayTimezone := strings.TrimSpace(opts.DisplayTimezone)
+	if displayTimezone == "" {
+		displayTimezone = "Europe/Moscow"
+	}
+
+	if opts.DisplayLookahead <= 0 {
+		opts.DisplayLookahead = 36 * time.Hour
 	}
 
 	gin.SetMode(gin.ReleaseMode)
@@ -43,8 +68,14 @@ func NewServer(log *slog.Logger, store storage.Store, authToken string) (*Server
 			slog.String("layer", "httpapi"),
 			slog.String("module", "printergateway.httpapi"),
 		),
-		store:     store,
-		authToken: authToken,
+		store: store,
+
+		agentAuthToken:   agentAuthToken,
+		displayAuthToken: displayAuthToken,
+
+		displayUserID:    opts.DisplayUserID,
+		displayTimezone:  displayTimezone,
+		displayLookahead: opts.DisplayLookahead,
 	}
 
 	r := gin.New()
@@ -54,12 +85,15 @@ func NewServer(log *slog.Logger, store storage.Store, authToken string) (*Server
 	r.GET("/healthz", s.health)
 	r.GET("/v1/health", s.health)
 
-	v1 := r.Group("/v1", s.auth)
+	v1 := r.Group("/v1", s.agentAuth)
 	v1.POST("/print-jobs/claim", s.claim)
 	v1.POST("/print-jobs/:id/printed", s.markPrinted)
 	v1.POST("/print-jobs/:id/failed", s.markFailed)
 	v1.POST("/wake-plans/:id/complete-if-printed", s.completeWakePlan)
 	v1.POST("/wake-schedule/next", s.nextWakePlan)
+
+	display := r.Group("/v1", s.displayAuth)
+	display.GET("/night-display", s.nightDisplay)
 
 	s.router = r
 
@@ -290,7 +324,55 @@ func (s *Server) nextWakePlan(c *gin.Context) {
 	})
 }
 
-func (s *Server) auth(c *gin.Context) {
+func (s *Server) nightDisplay(c *gin.Context) {
+	now := time.Now().UTC()
+
+	plan, err := s.store.GetNextWakePlan(c.Request.Context(), storage.GetNextWakePlanInput{
+		UserID:    s.displayUserID,
+		Now:       now,
+		Lookahead: s.displayLookahead,
+	})
+	if err != nil {
+		s.log.Error("get night display wake plan failed",
+			slog.Int64("user_id", s.displayUserID),
+			slog.Time("now", now),
+			slog.Duration("lookahead", s.displayLookahead),
+			slog.Any("err", err),
+		)
+		storageFail(c, err)
+		return
+	}
+
+	if plan == nil {
+		s.log.Info("night display wake plan not found",
+			slog.Int64("user_id", s.displayUserID),
+			slog.Time("now", now),
+			slog.Duration("lookahead", s.displayLookahead),
+		)
+
+		c.JSON(http.StatusOK, NewNightDisplayResponse(now, s.displayTimezone, nil))
+		return
+	}
+
+	s.log.Info("night display wake plan found",
+		slog.Int64("user_id", s.displayUserID),
+		slog.Int64("wake_plan_id", plan.ID),
+		slog.Time("wake_at", plan.WakeAt),
+		slog.String("status", plan.Status),
+	)
+
+	c.JSON(http.StatusOK, NewNightDisplayResponse(now, s.displayTimezone, plan))
+}
+
+func (s *Server) agentAuth(c *gin.Context) {
+	s.requireBearerToken(c, s.agentAuthToken)
+}
+
+func (s *Server) displayAuth(c *gin.Context) {
+	s.requireBearerToken(c, s.displayAuthToken)
+}
+
+func (s *Server) requireBearerToken(c *gin.Context, expectedToken string) {
 	const prefix = "Bearer "
 
 	header := strings.TrimSpace(c.GetHeader("Authorization"))
@@ -301,8 +383,8 @@ func (s *Server) auth(c *gin.Context) {
 	}
 
 	token := strings.TrimSpace(header[len(prefix):])
-	if len(token) != len(s.authToken) ||
-		subtle.ConstantTimeCompare([]byte(token), []byte(s.authToken)) != 1 {
+	if len(token) != len(expectedToken) ||
+		subtle.ConstantTimeCompare([]byte(token), []byte(expectedToken)) != 1 {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
 		c.Abort()
 		return

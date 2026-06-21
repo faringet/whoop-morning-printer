@@ -28,6 +28,20 @@ printergateway:
   # auth_token имеет приоритет.
   auth_token_file: ""
 
+  # Отдельный read-only Bearer token для ночного display-контура.
+  display_auth_token: ""
+
+  # Та же история что и с auth_token_file выше
+  display_auth_token_file: ""
+
+  # Какого юзера отдает в ночной контур
+  display_user_id: 1
+
+  display_timezone: "Europe/Moscow"
+
+  # Насколько глубоко ищем след подъем
+  display_lookahead: 36h
+
 
   startup_timeout: 60s
 
