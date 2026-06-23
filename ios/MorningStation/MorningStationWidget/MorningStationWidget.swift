@@ -73,81 +73,115 @@ var body: some View {
     .containerBackground(.black, for: .widget)
 }
 
-private var armedView: some View {
-    VStack(alignment: .leading, spacing: 0) {
-        HStack(alignment: .center) {
-            Text("WAKE")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .tracking(1.6)
-                .foregroundStyle(stationRed.opacity(0.58))
+    private var armedView: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center) {
+                HStack(spacing: 5) {
+                    Image(systemName: "alarm.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(stationRed.opacity(0.55))
+
+                    Text("NEXT WAKE")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .tracking(1.25)
+                        .foregroundStyle(stationRed.opacity(0.55))
+                }
+
+                Spacer(minLength: 8)
+
+                Text("ARMED")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .tracking(1.0)
+                    .foregroundStyle(stationRed.opacity(0.68))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(stationRed.opacity(0.16), in: Capsule())
+            }
+
+            Spacer(minLength: 10)
+
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "alarm")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(stationRed.opacity(0.42))
+
+                Text(wakeTimeText)
+                    .font(.system(size: 24, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .foregroundStyle(stationRed.opacity(0.62))
+            }
 
             Spacer(minLength: 8)
 
-            Text("ARMED")
+            VStack(alignment: .leading, spacing: 2) {
+                Text(timeUntilWakeText)
+                    .font(.system(size: 33, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+                    .foregroundStyle(stationRed)
+
+                Text("UNTIL MORNING")
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .tracking(1.15)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .foregroundStyle(stationRed.opacity(0.44))
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+
+private var notArmedView: some View {
+    VStack(alignment: .leading, spacing: 0) {
+        HStack(alignment: .center) {
+            Text("MORNING")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .tracking(1.4)
+                .foregroundStyle(stationRed.opacity(0.52))
+
+            Spacer(minLength: 8)
+
+            Text("NOT SET")
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
-                .tracking(1.1)
+                .tracking(1.0)
                 .foregroundStyle(stationRed.opacity(0.68))
                 .padding(.horizontal, 7)
                 .padding(.vertical, 4)
                 .background(stationRed.opacity(0.16), in: Capsule())
         }
 
-        Spacer(minLength: 8)
+        Spacer(minLength: 10)
 
-        Text(wakeTimeText)
-            .font(.system(size: 39, weight: .semibold, design: .rounded))
-            .monospacedDigit()
+        Text("NO WAKE")
+            .font(.system(size: 28, weight: .semibold, design: .rounded))
             .lineLimit(1)
-            .minimumScaleFactor(0.72)
+            .minimumScaleFactor(0.7)
             .foregroundStyle(stationRed)
 
-        Spacer(minLength: 8)
+        Text("SCHEDULED")
+            .font(.system(size: 17, weight: .semibold, design: .rounded))
+            .tracking(1.0)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .foregroundStyle(stationRed.opacity(0.78))
 
-        VStack(alignment: .leading, spacing: 2) {
-            Text(timeUntilWakeText)
-                .font(.system(size: 23, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .foregroundStyle(stationRed.opacity(0.92))
+        Spacer(minLength: 10)
 
-            Text("UNTIL MORNING")
-                .font(.system(size: 9, weight: .medium, design: .rounded))
-                .tracking(1.05)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .foregroundStyle(stationRed.opacity(0.44))
-        }
+        Text("OPEN TELEGRAM")
+            .font(.system(size: 10, weight: .medium, design: .rounded))
+            .tracking(1.1)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .foregroundStyle(stationRed.opacity(0.48))
 
         Spacer(minLength: 0)
-    }
-    .padding(.horizontal, 14)
-    .padding(.vertical, 12)
-}
-
-private var notArmedView: some View {
-    VStack(alignment: .leading, spacing: 0) {
-        Text("MORNING")
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .tracking(1.5)
-            .foregroundStyle(stationRed.opacity(0.52))
-
-        Spacer(minLength: 8)
-
-        Text("NOT\nARMED")
-            .font(.system(size: 25, weight: .semibold, design: .rounded))
-            .lineSpacing(1)
-            .multilineTextAlignment(.leading)
-            .foregroundStyle(stationRed.opacity(0.9))
-
-        Spacer(minLength: 8)
-
-        Text("SET WAKE\nIN TELEGRAM")
-            .font(.system(size: 9, weight: .medium, design: .rounded))
-            .tracking(1.0)
-            .lineSpacing(2)
-            .multilineTextAlignment(.leading)
-            .foregroundStyle(stationRed.opacity(0.42))
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.horizontal, 14)
@@ -160,25 +194,29 @@ private var wakeTimeText: String {
     return formatter.string(from: entry.wakeAt)
 }
 
-    private var timeUntilWakeText: String {
-        let totalMinutes = max(0, Int(entry.wakeAt.timeIntervalSince(entry.date) / 60))
+private var timeUntilWakeText: String {
+    let totalMinutes = max(0, Int(entry.wakeAt.timeIntervalSince(entry.date) / 60))
 
-        if totalMinutes >= 90 {
-            let roundedHours = max(1, (totalMinutes + 30) / 60)
+    if totalMinutes >= 90 {
+        let roundedHours = max(1, (totalMinutes + 30) / 60)
 
-            if roundedHours == 1 {
-                return "1 HOUR"
-            }
-
-            return "\(roundedHours) HOURS"
-        }
-
-        if totalMinutes >= 60 {
+        if roundedHours == 1 {
             return "1 HOUR"
         }
 
-        return "\(totalMinutes) MIN"
+        return "\(roundedHours) HOURS"
     }
+
+    if totalMinutes >= 60 {
+        return "1 HOUR"
+    }
+
+    if totalMinutes <= 1 {
+        return "SOON"
+    }
+
+    return "\(totalMinutes) MIN"
+}
 
 }
 
@@ -205,7 +243,7 @@ MorningStationWidget()
 } timeline: {
 MorningStationEntry(
 date: Date(),
-wakeAt: Calendar.current.date(byAdding: .hour, value: 8, to: Date()) ?? Date(),
+wakeAt: Calendar.current.date(byAdding: .hour, value: 16, to: Date()) ?? Date(),
 isArmed: true
 )
 
@@ -216,4 +254,3 @@ MorningStationEntry(
 )
 
 }
-
