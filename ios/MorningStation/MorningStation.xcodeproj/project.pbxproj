@@ -12,6 +12,8 @@
 		0B638A7E2FE84E1000B11DBE /* MorningStationWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0B638A6E2FE84E0F00B11DBE /* MorningStationWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		0BA10E3D2FEB0DDA00DEB7D6 /* NightDisplayModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA10E3C2FEB0DDA00DEB7D6 /* NightDisplayModels.swift */; };
 		0BA10E3E2FEB0DDA00DEB7D6 /* NightDisplayModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA10E3C2FEB0DDA00DEB7D6 /* NightDisplayModels.swift */; };
+		0BA10E402FEB123100DEB7D6 /* PrinterGatewayClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA10E3F2FEB123100DEB7D6 /* PrinterGatewayClient.swift */; };
+		0BA10E412FEB123100DEB7D6 /* PrinterGatewayClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA10E3F2FEB123100DEB7D6 /* PrinterGatewayClient.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -44,6 +46,7 @@
 		0B638A702FE84E0F00B11DBE /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		0B638A722FE84E0F00B11DBE /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		0BA10E3C2FEB0DDA00DEB7D6 /* NightDisplayModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NightDisplayModels.swift; path = Shared/NightDisplayModels.swift; sourceTree = "<group>"; };
+		0BA10E3F2FEB123100DEB7D6 /* PrinterGatewayClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PrinterGatewayClient.swift; path = Shared/PrinterGatewayClient.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -95,6 +98,7 @@
 		0B638A532FE84AE300B11DBE = {
 			isa = PBXGroup;
 			children = (
+				0BA10E3F2FEB123100DEB7D6 /* PrinterGatewayClient.swift */,
 				0BA10E3C2FEB0DDA00DEB7D6 /* NightDisplayModels.swift */,
 				0B638A5E2FE84AE400B11DBE /* MorningStation */,
 				0B638A742FE84E0F00B11DBE /* MorningStationWidget */,
@@ -231,6 +235,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0BA10E3E2FEB0DDA00DEB7D6 /* NightDisplayModels.swift in Sources */,
+				0BA10E402FEB123100DEB7D6 /* PrinterGatewayClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -239,6 +244,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0BA10E3D2FEB0DDA00DEB7D6 /* NightDisplayModels.swift in Sources */,
+				0BA10E412FEB123100DEB7D6 /* PrinterGatewayClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
