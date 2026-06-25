@@ -16,6 +16,8 @@
 		0BA10E412FEB123100DEB7D6 /* PrinterGatewayClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA10E3F2FEB123100DEB7D6 /* PrinterGatewayClient.swift */; };
 		0BA10E452FED665000DEB7D6 /* SnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA10E442FED665000DEB7D6 /* SnapshotStore.swift */; };
 		0BA10E462FED665000DEB7D6 /* SnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA10E442FED665000DEB7D6 /* SnapshotStore.swift */; };
+		0BA10E482FED70DC00DEB7D6 /* SharedSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA10E472FED70DC00DEB7D6 /* SharedSettingsStore.swift */; };
+		0BA10E492FED70DC00DEB7D6 /* SharedSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA10E472FED70DC00DEB7D6 /* SharedSettingsStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,6 +53,7 @@
 		0BA10E3F2FEB123100DEB7D6 /* PrinterGatewayClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PrinterGatewayClient.swift; path = Shared/PrinterGatewayClient.swift; sourceTree = "<group>"; };
 		0BA10E432FED64E700DEB7D6 /* MorningStationWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MorningStationWidgetExtension.entitlements; sourceTree = "<group>"; };
 		0BA10E442FED665000DEB7D6 /* SnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SnapshotStore.swift; path = Shared/SnapshotStore.swift; sourceTree = "<group>"; };
+		0BA10E472FED70DC00DEB7D6 /* SharedSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SharedSettingsStore.swift; path = Shared/SharedSettingsStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -102,6 +105,7 @@
 		0B638A532FE84AE300B11DBE = {
 			isa = PBXGroup;
 			children = (
+				0BA10E472FED70DC00DEB7D6 /* SharedSettingsStore.swift */,
 				0BA10E442FED665000DEB7D6 /* SnapshotStore.swift */,
 				0BA10E432FED64E700DEB7D6 /* MorningStationWidgetExtension.entitlements */,
 				0BA10E3F2FEB123100DEB7D6 /* PrinterGatewayClient.swift */,
@@ -243,6 +247,7 @@
 				0BA10E3E2FEB0DDA00DEB7D6 /* NightDisplayModels.swift in Sources */,
 				0BA10E462FED665000DEB7D6 /* SnapshotStore.swift in Sources */,
 				0BA10E402FEB123100DEB7D6 /* PrinterGatewayClient.swift in Sources */,
+				0BA10E492FED70DC00DEB7D6 /* SharedSettingsStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -253,6 +258,7 @@
 				0BA10E3D2FEB0DDA00DEB7D6 /* NightDisplayModels.swift in Sources */,
 				0BA10E452FED665000DEB7D6 /* SnapshotStore.swift in Sources */,
 				0BA10E412FEB123100DEB7D6 /* PrinterGatewayClient.swift in Sources */,
+				0BA10E482FED70DC00DEB7D6 /* SharedSettingsStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

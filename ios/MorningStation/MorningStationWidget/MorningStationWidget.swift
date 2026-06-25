@@ -15,33 +15,69 @@ snapshot: .mockArmed
 }
 
 func getSnapshot(in context: Context, completion: @escaping (MorningStationEntry) -> Void) {
-    let snapshot = context.isPreview ? NightDisplaySnapshot.mockArmed : SnapshotStore.shared.load()
+    if context.isPreview {
+        completion(
+            MorningStationEntry(
+                date: Date(),
+                snapshot: .mockArmed
+            )
+        )
+        return
+    }
 
     completion(
         MorningStationEntry(
             date: Date(),
-            snapshot: snapshot
+            snapshot: SnapshotStore.shared.load()
         )
     )
 }
 
 func getTimeline(in context: Context, completion: @escaping (Timeline<MorningStationEntry>) -> Void) {
-    let now = Date()
-    let snapshot = SnapshotStore.shared.load()
+    Task {
+        let now = Date()
+        let snapshot = await loadFreshSnapshotOrFallback()
 
-    let entry = MorningStationEntry(
-        date: now,
-        snapshot: snapshot
-    )
-
-    let nextUpdate = Calendar.current.date(byAdding: .minute, value: 1, to: now) ?? now.addingTimeInterval(60)
-
-    completion(
-        Timeline(
-            entries: [entry],
-            policy: .after(nextUpdate)
+        let entry = MorningStationEntry(
+            date: now,
+            snapshot: snapshot
         )
-    )
+
+        let nextUpdate = Calendar.current.date(
+            byAdding: .minute,
+            value: 10,
+            to: now
+        ) ?? now.addingTimeInterval(600)
+
+        completion(
+            Timeline(
+                entries: [entry],
+                policy: .after(nextUpdate)
+            )
+        )
+    }
+}
+
+private func loadFreshSnapshotOrFallback() async -> NightDisplaySnapshot? {
+    let settings = SharedSettingsStore.shared
+
+    guard settings.hasDisplayToken, let baseURL = settings.baseURL else {
+        return SnapshotStore.shared.load()
+    }
+
+    do {
+        let client = PrinterGatewayClient(
+            baseURL: baseURL,
+            displayToken: settings.displayToken
+        )
+
+        let snapshot = try await client.fetchNightDisplay()
+        try? SnapshotStore.shared.save(snapshot)
+
+        return snapshot
+    } catch {
+        return SnapshotStore.shared.load()
+    }
 }
 
 }
