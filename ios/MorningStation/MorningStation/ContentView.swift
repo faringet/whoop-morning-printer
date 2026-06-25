@@ -1,4 +1,5 @@
 import SwiftUI
+import WidgetKit
 
 struct ContentView: View {
     @AppStorage("printerGatewayBaseURL")
@@ -96,6 +97,9 @@ struct ContentView: View {
 
             let snapshot = try await client.fetchNightDisplay()
             lastSnapshot = snapshot
+            
+            try SnapshotStore.shared.save(snapshot)
+            WidgetCenter.shared.reloadTimelines(ofKind: "MorningStationWidget")
 
             if snapshot.isArmed {
                 testMessage = "Connected. Wake plan is armed."

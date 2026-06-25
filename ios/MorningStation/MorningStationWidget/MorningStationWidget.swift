@@ -3,54 +3,45 @@ import SwiftUI
 
 struct MorningStationEntry: TimelineEntry {
 let date: Date
-let wakeAt: Date
-let isArmed: Bool
+let snapshot: NightDisplaySnapshot?
 }
 
 struct MorningStationProvider: TimelineProvider {
 func placeholder(in context: Context) -> MorningStationEntry {
 MorningStationEntry(
 date: Date(),
-wakeAt: mockWakeAt(),
-isArmed: true
+snapshot: .mockArmed
 )
 }
 
 func getSnapshot(in context: Context, completion: @escaping (MorningStationEntry) -> Void) {
+    let snapshot = context.isPreview ? NightDisplaySnapshot.mockArmed : SnapshotStore.shared.load()
+
     completion(
         MorningStationEntry(
             date: Date(),
-            wakeAt: mockWakeAt(),
-            isArmed: true
+            snapshot: snapshot
         )
     )
 }
 
 func getTimeline(in context: Context, completion: @escaping (Timeline<MorningStationEntry>) -> Void) {
     let now = Date()
+    let snapshot = SnapshotStore.shared.load()
+
     let entry = MorningStationEntry(
         date: now,
-        wakeAt: mockWakeAt(),
-        isArmed: true
+        snapshot: snapshot
     )
 
-    let nextUpdate = Calendar.current.date(byAdding: .minute, value: 5, to: now) ?? now.addingTimeInterval(300)
-    completion(Timeline(entries: [entry], policy: .after(nextUpdate)))
-}
+    let nextUpdate = Calendar.current.date(byAdding: .minute, value: 1, to: now) ?? now.addingTimeInterval(60)
 
-private func mockWakeAt() -> Date {
-    var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-    components.hour = 8
-    components.minute = 0
-    components.second = 0
-
-    let todayWake = Calendar.current.date(from: components) ?? Date().addingTimeInterval(3600)
-
-    if todayWake > Date() {
-        return todayWake
-    }
-
-    return Calendar.current.date(byAdding: .day, value: 1, to: todayWake) ?? todayWake.addingTimeInterval(86400)
+    completion(
+        Timeline(
+            entries: [entry],
+            policy: .after(nextUpdate)
+        )
+    )
 }
 
 }
@@ -64,79 +55,94 @@ var body: some View {
     ZStack {
         Color.black
 
-        if entry.isArmed {
-            armedView
+        if let snapshot = entry.snapshot {
+            if snapshot.isArmed, let wakePlan = snapshot.wakePlan {
+                armedView(wakePlan: wakePlan)
+            } else {
+                notArmedView
+            }
         } else {
-            notArmedView
+            noSnapshotView
         }
     }
     .containerBackground(.black, for: .widget)
 }
 
-    private var armedView: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center) {
-                HStack(spacing: 5) {
-                    Image(systemName: "alarm.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(stationRed.opacity(0.55))
-
-                    Text("NEXT WAKE")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .tracking(1.25)
-                        .foregroundStyle(stationRed.opacity(0.55))
-                }
-
-                Spacer(minLength: 8)
-
-                Text("ARMED")
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .tracking(1.0)
-                    .foregroundStyle(stationRed.opacity(0.68))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(stationRed.opacity(0.16), in: Capsule())
-            }
-
-            Spacer(minLength: 10)
-
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: "alarm")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(stationRed.opacity(0.42))
-
-                Text(wakeTimeText)
-                    .font(.system(size: 24, weight: .medium, design: .rounded))
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .foregroundStyle(stationRed.opacity(0.62))
-            }
+private func armedView(wakePlan: NightDisplayWakePlan) -> some View {
+    VStack(alignment: .leading, spacing: 0) {
+        HStack(alignment: .center) {
+            Text("NEXT\nWAKE")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .tracking(1.35)
+                .lineSpacing(1)
+                .foregroundStyle(stationRed.opacity(0.58))
 
             Spacer(minLength: 8)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(timeUntilWakeText)
-                    .font(.system(size: 33, weight: .semibold, design: .rounded))
+            Text("ARMED")
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .tracking(1.0)
+                .foregroundStyle(stationRed.opacity(0.68))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(stationRed.opacity(0.16), in: Capsule())
+        }
+
+        Spacer(minLength: 8)
+
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
+            Image(systemName: "alarm")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(stationRed.opacity(0.52))
+
+            Text(wakeTimeText(wakeAt: wakePlan.wakeAt))
+                .font(.system(size: 22, weight: .medium, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .foregroundStyle(stationRed.opacity(0.66))
+        }
+
+        Spacer(minLength: 8)
+
+        VStack(alignment: .leading, spacing: 2) {
+            if countdownHours(wakeAt: wakePlan.wakeAt) > 0 {
+                Text(countdownHoursLine(wakeAt: wakePlan.wakeAt))
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1)
-                    .minimumScaleFactor(0.62)
-                    .foregroundStyle(stationRed)
+                    .minimumScaleFactor(0.8)
+                    .foregroundStyle(stationRed.opacity(0.72))
 
-                Text("UNTIL MORNING")
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                    .tracking(1.15)
+                Text(countdownMinutesLine(wakeAt: wakePlan.wakeAt))
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .monospacedDigit()
                     .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .foregroundStyle(stationRed.opacity(0.44))
+                    .minimumScaleFactor(0.8)
+                    .foregroundStyle(stationRed.opacity(0.72))
+            } else {
+                Text(countdownMinutesLine(wakeAt: wakePlan.wakeAt))
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .foregroundStyle(stationRed.opacity(0.92))
             }
 
-            Spacer(minLength: 0)
+            Text("UNTIL MORNING")
+                .font(.system(size: 9, weight: .medium, design: .rounded))
+                .tracking(1.15)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(stationRed.opacity(0.44))
+                .padding(.top, 2)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-    }
 
+        Spacer(minLength: 0)
+    }
+    .padding(.horizontal, 14)
+    .padding(.vertical, 12)
+}
 
 private var notArmedView: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -188,34 +194,96 @@ private var notArmedView: some View {
     .padding(.vertical, 12)
 }
 
-private var wakeTimeText: String {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "HH:mm"
-    return formatter.string(from: entry.wakeAt)
-}
+private var noSnapshotView: some View {
+    VStack(alignment: .leading, spacing: 0) {
+        HStack(alignment: .center) {
+            Text("MORNING")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .tracking(1.4)
+                .foregroundStyle(stationRed.opacity(0.52))
 
-private var timeUntilWakeText: String {
-    let totalMinutes = max(0, Int(entry.wakeAt.timeIntervalSince(entry.date) / 60))
+            Spacer(minLength: 8)
 
-    if totalMinutes >= 90 {
-        let roundedHours = max(1, (totalMinutes + 30) / 60)
-
-        if roundedHours == 1 {
-            return "1 HOUR"
+            Text("SYNC")
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .tracking(1.0)
+                .foregroundStyle(stationRed.opacity(0.68))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(stationRed.opacity(0.16), in: Capsule())
         }
 
-        return "\(roundedHours) HOURS"
-    }
+        Spacer(minLength: 10)
 
-    if totalMinutes >= 60 {
+        Text("NO DATA")
+            .font(.system(size: 28, weight: .semibold, design: .rounded))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .foregroundStyle(stationRed)
+
+        Text("AVAILABLE")
+            .font(.system(size: 17, weight: .semibold, design: .rounded))
+            .tracking(1.0)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .foregroundStyle(stationRed.opacity(0.78))
+
+        Spacer(minLength: 10)
+
+        Text("OPEN APP")
+            .font(.system(size: 10, weight: .medium, design: .rounded))
+            .tracking(1.1)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .foregroundStyle(stationRed.opacity(0.48))
+
+        Spacer(minLength: 0)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.horizontal, 14)
+    .padding(.vertical, 12)
+}
+
+private func wakeTimeText(wakeAt: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "HH:mm"
+    return formatter.string(from: wakeAt)
+}
+
+private func countdownTotalMinutes(wakeAt: Date) -> Int {
+    max(0, Int(wakeAt.timeIntervalSince(entry.date) / 60))
+}
+
+private func countdownHours(wakeAt: Date) -> Int {
+    countdownTotalMinutes(wakeAt: wakeAt) / 60
+}
+
+private func countdownMinutes(wakeAt: Date) -> Int {
+    countdownTotalMinutes(wakeAt: wakeAt) % 60
+}
+
+private func countdownHoursLine(wakeAt: Date) -> String {
+    let hours = countdownHours(wakeAt: wakeAt)
+
+    if hours == 1 {
         return "1 HOUR"
     }
 
-    if totalMinutes <= 1 {
+    return "\(hours) HOURS"
+}
+
+private func countdownMinutesLine(wakeAt: Date) -> String {
+    let minutes = countdownMinutes(wakeAt: wakeAt)
+
+    if countdownHours(wakeAt: wakeAt) == 0 && minutes <= 1 {
         return "SOON"
     }
 
-    return "\(totalMinutes) MIN"
+    if minutes == 1 {
+        return "1 MINUTE"
+    }
+
+    return "\(minutes) MINUTES"
 }
 
 }
@@ -238,19 +306,48 @@ var body: some WidgetConfiguration {
 
 }
 
+private extension NightDisplaySnapshot {
+static var mockArmed: NightDisplaySnapshot {
+NightDisplaySnapshot(
+status: .armed,
+wakePlan: NightDisplayWakePlan(
+id: 20,
+wakeAt: Calendar.current.date(byAdding: .hour, value: 3, to: Date()) ?? Date(),
+status: "scheduled",
+updatedAt: Date()
+),
+serverTime: Date(),
+timezone: "Europe/Moscow"
+)
+}
+
+static var mockNotArmed: NightDisplaySnapshot {
+    NightDisplaySnapshot(
+        status: .notArmed,
+        wakePlan: nil,
+        serverTime: Date(),
+        timezone: "Europe/Moscow"
+    )
+}
+
+}
+
 #Preview(as: .systemSmall) {
 MorningStationWidget()
 } timeline: {
 MorningStationEntry(
 date: Date(),
-wakeAt: Calendar.current.date(byAdding: .hour, value: 16, to: Date()) ?? Date(),
-isArmed: true
+snapshot: .mockArmed
 )
 
 MorningStationEntry(
     date: Date(),
-    wakeAt: Calendar.current.date(byAdding: .hour, value: 8, to: Date()) ?? Date(),
-    isArmed: false
+    snapshot: .mockNotArmed
+)
+
+MorningStationEntry(
+    date: Date(),
+    snapshot: nil
 )
 
 }
