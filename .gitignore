@@ -33,3 +33,17 @@ legacy/wakeplanner/config/config.local.yaml
 /cmd/migrator/config.yaml
 /cmd/migrator/config.local.yaml
 
+# Xcode / iOS
+DerivedData/
+*.xcuserstate
+*.xcuserdata/
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+ios/**/xcuserdata/
+ios/**/.swiftpm/
+ios/**/build/
+
+# macOS
+.DS_Store
+**/.DS_Store
