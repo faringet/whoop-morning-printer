@@ -25,9 +25,7 @@ type Ollama struct {
 
 	Model     string `mapstructure:"model"`
 	KeepAlive string `mapstructure:"keep_alive"`
-
-	Temperature float64 `mapstructure:"temperature"`
-	TopP        float64 `mapstructure:"top_p"`
+	Think     bool   `mapstructure:"think"`
 }
 
 func (o *Ollama) setDefaults() {
@@ -49,13 +47,6 @@ func (o *Ollama) setDefaults() {
 	if o.KeepAlive == "" {
 		o.KeepAlive = "2h"
 	}
-
-	if o.Temperature <= 0 {
-		o.Temperature = 0.2
-	}
-	if o.TopP <= 0 {
-		o.TopP = 0.9
-	}
 }
 
 func (o *Ollama) Validate() error {
@@ -71,12 +62,6 @@ func (o *Ollama) Validate() error {
 	}
 	if strings.TrimSpace(o.Model) == "" {
 		return errors.New("ollama.model is required")
-	}
-	if o.Temperature < 0 || o.Temperature > 2 {
-		return fmt.Errorf("ollama.temperature must be between 0 and 2, got %v", o.Temperature)
-	}
-	if o.TopP <= 0 || o.TopP > 1 {
-		return fmt.Errorf("ollama.top_p must be > 0 and <= 1, got %v", o.TopP)
 	}
 
 	return nil

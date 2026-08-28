@@ -42,13 +42,10 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 	}
 
 	ollamaClient, err := ollama.NewClient(ollama.Config{
-		BaseURL: cfg.Ollama.BaseURL,
-		Timeout: cfg.Ollama.Timeout,
-
+		BaseURL:   cfg.Ollama.BaseURL,
+		Timeout:   cfg.Ollama.Timeout,
 		KeepAlive: cfg.Ollama.KeepAlive,
-
-		Temperature: cfg.Ollama.Temperature,
-		TopP:        cfg.Ollama.TopP,
+		Think:     cfg.Ollama.Think,
 	})
 	if err != nil {
 		_ = st.Close()
@@ -152,6 +149,7 @@ func (a *App) Run(ctx context.Context) error {
 		slog.String("ollama_url", a.cfg.Ollama.BaseURL),
 		slog.String("model", a.cfg.Ollama.Model),
 		slog.String("keep_alive", a.cfg.Ollama.KeepAlive),
+		slog.Bool("think", a.cfg.Ollama.Think),
 		slog.String("prompt_version", a.cfg.Coach.PromptVersion),
 		slog.Bool("warmup_on_start", a.cfg.Coach.WarmupOnStart),
 		slog.Bool("require_ready_snapshot", a.cfg.Coach.RequireReadySnapshot),

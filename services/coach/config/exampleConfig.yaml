@@ -23,8 +23,6 @@ ollama:
   timeout: 180s
   model: "qwen2.5:7b"
   keep_alive: "2h"
-  temperature: 0.2
-  top_p: 0.9
 
 coach:
   # Режим работы.

@@ -17,10 +17,9 @@ type Client struct {
 	baseURL    string
 	httpClient *http.Client
 
-	timeout     time.Duration
-	keepAlive   string
-	temperature float64
-	topP        float64
+	timeout   time.Duration
+	keepAlive string
+	think     bool
 }
 
 type Config struct {
@@ -28,7 +27,10 @@ type Config struct {
 	Timeout time.Duration
 
 	KeepAlive string
+	Think     bool
+}
 
+type GenerateOptions struct {
 	Temperature float64
 	TopP        float64
 }
@@ -41,13 +43,6 @@ func NewClient(cfg Config) (*Client, error) {
 
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 180 * time.Second
-	}
-
-	if cfg.Temperature <= 0 {
-		cfg.Temperature = 0.2
-	}
-	if cfg.TopP <= 0 {
-		cfg.TopP = 0.9
 	}
 
 	transport := &http.Transport{
@@ -66,11 +61,10 @@ func NewClient(cfg Config) (*Client, error) {
 	}
 
 	return &Client{
-		baseURL:     strings.TrimRight(baseURL, "/"),
-		timeout:     cfg.Timeout,
-		keepAlive:   strings.TrimSpace(cfg.KeepAlive),
-		temperature: cfg.Temperature,
-		topP:        cfg.TopP,
+		baseURL:   strings.TrimRight(baseURL, "/"),
+		timeout:   cfg.Timeout,
+		keepAlive: strings.TrimSpace(cfg.KeepAlive),
+		think:     cfg.Think,
 		httpClient: &http.Client{
 			Timeout:   cfg.Timeout,
 			Transport: transport,
@@ -78,7 +72,7 @@ func NewClient(cfg Config) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Generate(ctx context.Context, model string, prompt string) (string, error) {
+func (c *Client) Generate(ctx context.Context, model string, prompt string, opts GenerateOptions) (string, error) {
 	if c == nil || c.httpClient == nil {
 		return "", errors.New("coach ollama: client is nil")
 	}
@@ -93,14 +87,23 @@ func (c *Client) Generate(ctx context.Context, model string, prompt string) (str
 		return "", errors.New("coach ollama: prompt is required")
 	}
 
+	if opts.Temperature < 0 || opts.Temperature > 2 {
+		return "", fmt.Errorf("coach ollama: temperature must be between 0 and 2, got %v", opts.Temperature)
+	}
+
+	if opts.TopP <= 0 || opts.TopP > 1 {
+		return "", fmt.Errorf("coach ollama: top_p must be > 0 and <= 1, got %v", opts.TopP)
+	}
+
 	reqBody := generateRequest{
 		Model:     model,
 		Prompt:    prompt,
 		Stream:    false,
 		KeepAlive: c.keepAlive,
+		Think:     c.think,
 		Options: map[string]any{
-			"temperature": c.temperature,
-			"top_p":       c.topP,
+			"temperature": opts.Temperature,
+			"top_p":       opts.TopP,
 		},
 	}
 
@@ -126,6 +129,7 @@ func (c *Client) Warmup(ctx context.Context, model string) error {
 		Model:     model,
 		Prompt:    "ping",
 		Stream:    false,
+		Think:     c.think,
 		KeepAlive: c.keepAlive,
 		Options: map[string]any{
 			"temperature": 0,
@@ -197,6 +201,7 @@ type generateRequest struct {
 	Prompt    string         `json:"prompt"`
 	Stream    bool           `json:"stream"`
 	KeepAlive string         `json:"keep_alive,omitempty"`
+	Think     bool           `json:"think"`
 	Options   map[string]any `json:"options,omitempty"`
 }
 
