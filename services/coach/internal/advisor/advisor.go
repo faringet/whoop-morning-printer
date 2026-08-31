@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	coachprompt "github.com/faringet/whoop-morning-printer/services/coach/internal/prompt"
+	"github.com/faringet/whoop-morning-printer/services/coach/internal/ollama"
 )
 
 type LLMClient interface {
-	Generate(ctx context.Context, model string, prompt string) (string, error)
+	Generate(ctx context.Context, model string, prompt string, opts ollama.GenerateOptions) (string, error)
 }
 
 type Config struct {
@@ -103,7 +103,9 @@ type advicePayload struct {
 	PromptVersion string `json:"prompt_version"`
 	DataState     string `json:"data_state"`
 
-	Metrics map[string]any `json:"metrics"`
+	Brief      MorningBrief   `json:"brief"`
+	Candidates []LLMResponse  `json:"candidates"`
+	Metrics    map[string]any `json:"metrics"`
 }
 
 func New(log *slog.Logger, cfg Config, llm LLMClient) (*Advisor, error) {
@@ -157,119 +159,48 @@ func (a *Advisor) Build(ctx context.Context, input BuildInput) (Advice, error) {
 		return Advice{}, err
 	}
 
-	timezone := strings.TrimSpace(input.Timezone)
-	if timezone == "" {
-		timezone = "UTC"
-	}
-
 	metrics := buildMetricsMap(input.Snapshot)
+	brief := buildMorningBrief(input.Snapshot)
 
-	metricsJSON, err := json.Marshal(metrics)
+	candidates, err := a.generateWriterCandidates(ctx, brief)
 	if err != nil {
-		return Advice{}, fmt.Errorf("advisor: marshal metrics json: %w", err)
+		return Advice{}, fmt.Errorf("advisor: generate writer candidates: %w", err)
 	}
 
-	promptText, err := coachprompt.BuildMorningPrompt(
-		a.cfg.PromptVersion,
-		a.cfg.PromptPath,
-		coachprompt.MorningInput{
-			Date:        formatDate(input.Snapshot.Date, timezone),
-			Timezone:    timezone,
-			WakeAtLocal: formatOptionalLocalTime(input.WakeAt, timezone),
-			DataState:   input.Snapshot.DataState,
-			MetricsJSON: string(metricsJSON),
-		},
-	)
+	response, err := a.generateEditorResponse(ctx, brief, candidates)
 	if err != nil {
-		return Advice{}, fmt.Errorf("advisor: build prompt: %w", err)
-	}
-
-	response, err := a.generateWithRetries(ctx, promptText)
-	if err != nil {
-		return Advice{}, err
+		return Advice{}, fmt.Errorf("advisor: generate editor response: %w", err)
 	}
 
 	response = LimitResponseText(response, a.cfg.MaxAdviceRunes, a.cfg.MaxMottoRunes)
 
 	payload, err := json.Marshal(advicePayload{
-		RenderedText: response.RenderedText,
-		Motto:        response.Motto,
-
+		RenderedText:  response.RenderedText,
+		Motto:         response.Motto,
 		Model:         a.cfg.Model,
 		PromptVersion: a.cfg.PromptVersion,
 		DataState:     input.Snapshot.DataState,
-
-		Metrics: metrics,
+		Brief:         brief,
+		Candidates:    candidates,
+		Metrics:       metrics,
 	})
 	if err != nil {
 		return Advice{}, fmt.Errorf("advisor: marshal advice payload: %w", err)
 	}
 
 	return Advice{
-		UserID:     input.Snapshot.UserID,
-		SnapshotID: input.Snapshot.ID,
-
-		Date: input.Snapshot.Date,
-
+		UserID:        input.Snapshot.UserID,
+		SnapshotID:    input.Snapshot.ID,
+		Date:          input.Snapshot.Date,
 		Model:         a.cfg.Model,
 		PromptVersion: a.cfg.PromptVersion,
-
-		DayType:    "unknown",
-		MainSignal: "",
-		AdviceText: response.RenderedText,
-		Motto:      response.Motto,
-
-		PayloadJSON: payload,
-
-		GeneratedAt: a.now().UTC(),
+		DayType:       dayTypeFromLoad(brief.RecommendedLoad),
+		MainSignal:    brief.MainSignal,
+		AdviceText:    response.RenderedText,
+		Motto:         response.Motto,
+		PayloadJSON:   payload,
+		GeneratedAt:   a.now().UTC(),
 	}, nil
-}
-
-func (a *Advisor) generateWithRetries(ctx context.Context, promptText string) (LLMResponse, error) {
-	var lastErr error
-
-	for attempt := 0; attempt <= a.cfg.MaxRetries; attempt++ {
-		if attempt > 0 {
-			sleep := a.cfg.RetryBackoff * time.Duration(attempt)
-
-			select {
-			case <-ctx.Done():
-				return LLMResponse{}, ctx.Err()
-			case <-time.After(sleep):
-			}
-		}
-
-		raw, err := a.llm.Generate(ctx, a.cfg.Model, promptText)
-		if err != nil {
-			lastErr = fmt.Errorf("ollama generate: %w", err)
-			a.log.Warn("llm generate failed",
-				slog.Int("attempt", attempt+1),
-				slog.Int("max_attempts", a.cfg.MaxRetries+1),
-				slog.Any("err", err),
-			)
-			continue
-		}
-
-		response, err := ParseLLMResponse(raw)
-		if err != nil {
-			lastErr = fmt.Errorf("parse llm response: %w", err)
-			a.log.Warn("parse llm response failed",
-				slog.Int("attempt", attempt+1),
-				slog.Int("max_attempts", a.cfg.MaxRetries+1),
-				slog.String("raw_snippet", safeSnippet(raw, 300)),
-				slog.Any("err", err),
-			)
-			continue
-		}
-
-		return response, nil
-	}
-
-	if lastErr == nil {
-		lastErr = errors.New("unknown advisor generation error")
-	}
-
-	return LLMResponse{}, lastErr
 }
 
 func validateSnapshot(snapshot Snapshot) error {
@@ -294,34 +225,4 @@ func buildMetricsMap(snapshot Snapshot) map[string]any {
 		"sleep_vs_need_pct": snapshot.SleepVsNeedPct,
 		"awake_minutes":     snapshot.AwakeMinutes,
 	}
-}
-
-func formatDate(t time.Time, timezone string) string {
-	loc := loadLocationOrUTC(timezone)
-
-	return t.In(loc).Format("2006-01-02")
-}
-
-func formatOptionalLocalTime(t *time.Time, timezone string) string {
-	if t == nil || t.IsZero() {
-		return ""
-	}
-
-	loc := loadLocationOrUTC(timezone)
-
-	return t.In(loc).Format("2006-01-02 15:04")
-}
-
-func loadLocationOrUTC(timezone string) *time.Location {
-	timezone = strings.TrimSpace(timezone)
-	if timezone == "" {
-		return time.UTC
-	}
-
-	loc, err := time.LoadLocation(timezone)
-	if err != nil {
-		return time.UTC
-	}
-
-	return loc
 }
