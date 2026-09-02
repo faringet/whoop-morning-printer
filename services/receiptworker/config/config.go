@@ -17,6 +17,7 @@ type Config struct {
 
 	ReceiptWorker ReceiptWorker `mapstructure:"receiptworker"`
 	Receipt       Receipt       `mapstructure:"receipt"`
+	FieldNote     FieldNote     `mapstructure:"field_note"`
 }
 
 type ReceiptWorker struct {
@@ -176,6 +177,79 @@ func (r Receipt) IsArtEnabled() bool {
 	return boolDefault(r.ArtEnabled, true)
 }
 
+type FieldNote struct {
+	Enabled *bool `mapstructure:"enabled"`
+
+	Ollama Ollama `mapstructure:"ollama"`
+}
+
+func (f *FieldNote) setDefaults() {
+	f.Ollama.setDefaults()
+}
+
+func (f *FieldNote) Validate() error {
+	if f == nil {
+		return errors.New("field_note config is nil")
+	}
+
+	if err := f.Ollama.Validate(); err != nil {
+		return fmt.Errorf("ollama: %w", err)
+	}
+
+	return nil
+}
+
+func (f FieldNote) IsEnabled() bool {
+	return boolDefault(f.Enabled, true)
+}
+
+type Ollama struct {
+	Enabled *bool `mapstructure:"enabled"`
+
+	BaseURL string `mapstructure:"base_url"`
+	Model   string `mapstructure:"model"`
+
+	Timeout   time.Duration `mapstructure:"timeout"`
+	KeepAlive string        `mapstructure:"keep_alive"`
+}
+
+func (o *Ollama) setDefaults() {
+	o.BaseURL = strings.TrimRight(strings.TrimSpace(o.BaseURL), "/")
+	o.Model = strings.TrimSpace(o.Model)
+	o.KeepAlive = strings.TrimSpace(o.KeepAlive)
+
+	if o.Timeout <= 0 {
+		o.Timeout = 10 * time.Minute
+	}
+	if o.KeepAlive == "" {
+		o.KeepAlive = "2h"
+	}
+}
+
+func (o *Ollama) Validate() error {
+	if o == nil {
+		return errors.New("ollama config is nil")
+	}
+	if !o.IsEnabled() {
+		return nil
+	}
+	if o.BaseURL == "" {
+		return errors.New("ollama.base_url is required")
+	}
+	if o.Model == "" {
+		return errors.New("ollama.model is required")
+	}
+	if o.Timeout <= 0 {
+		return errors.New("ollama.timeout must be > 0")
+	}
+
+	return nil
+}
+
+func (o Ollama) IsEnabled() bool {
+	return boolDefault(o.Enabled, false)
+}
+
 func (c *Config) setDefaults() {
 	if c.Base.AppName == "" {
 		c.Base.AppName = "receiptworker"
@@ -207,6 +281,7 @@ func (c *Config) setDefaults() {
 
 	c.ReceiptWorker.setDefaults()
 	c.Receipt.setDefaults()
+	c.FieldNote.setDefaults()
 }
 
 func (c *Config) Validate() error {
@@ -233,6 +308,10 @@ func (c *Config) Validate() error {
 	}
 	if err := c.Receipt.Validate(); err != nil {
 		return fmt.Errorf("receipt: %w", err)
+	}
+
+	if err := c.FieldNote.Validate(); err != nil {
+		return fmt.Errorf("field_note: %w", err)
 	}
 
 	return nil

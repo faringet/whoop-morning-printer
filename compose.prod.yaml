@@ -133,6 +133,8 @@ services:
     environment:
       RECEIPTWORKER_ENV: ${APP_ENV}
       RECEIPTWORKER_STORAGE_POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@wmp-postgres:5432/${POSTGRES_DB}?sslmode=disable
+      RECEIPTWORKER_FIELD_NOTE_OLLAMA_BASE_URL: ${COACH_OLLAMA_BASE_URL}
+      RECEIPTWORKER_FIELD_NOTE_OLLAMA_MODEL: ${COACH_OLLAMA_MODEL}
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -140,6 +142,7 @@ services:
       - ./config:/app/config:ro
     networks:
       - wmp
+      - tbs-llm
 
   printergateway:
     image: ghcr.io/${GHCR_OWNER}/whoop-morning-printer/printergateway:${IMAGE_TAG}
