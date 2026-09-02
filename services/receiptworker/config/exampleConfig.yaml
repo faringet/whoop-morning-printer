@@ -1,5 +1,4 @@
 app_name: receiptworker
-
 env: dev
 
 logger:
@@ -24,7 +23,6 @@ receiptworker:
   # once:
   #   Один раз проверить подходящие print_jobs,
   #   подготовить чеки и выйти.
-  #   Для отладки.
   #
   # interval:
   #   Постоянно работать воркером:
@@ -32,7 +30,6 @@ receiptworker:
   mode: once
 
   user_id: 1
-
   timezone: "Europe/Moscow"
 
   # Интервал между проверками в режиме interval.
@@ -41,10 +38,9 @@ receiptworker:
   # Сколько задач максимум брать за один тик.
   poll_limit: 20
 
-  # Готовить первый чек-будильник.
+  # Готовить первый wake receipt.
   #
-  # Этот чек не зависит от WHOOP и coach.
-  # Его задача — напечататься строго по wake_at и разбудить.
+  # Этот чек не зависит от WHOOP и morning_advice.
   process_wake_receipt: true
 
   # Готовить второй финальный чек.
@@ -52,46 +48,72 @@ receiptworker:
   # Этот чек зависит от WHOOP snapshot и morning_advice.
   process_final_report: true
 
-  # Если true, receiptworker может сам создать недостающий final_report print_job
-  # для wake_plan, если morningbot его ещё не создал.
-  #
-  # Это удобно для обратной совместимости:
-  # старые wake_plans уже существуют, а final_report_job_id может быть NULL.
+  # Если true, receiptworker может сам создать недостающий
+  # final_report print_job для wake_plan.
   ensure_final_report_jobs: true
 
   # Если true, финальный чек требует готовый morning_advice.
   #
-  # В нормальном flow:
-  # whoopsync → daily_health_snapshots
-  # coach     → morning_advice
-  # receiptworker → final_report
+  # whoopsync     -> daily_health_snapshots
+  # coach         -> morning_advice
+  # receiptworker -> final_report
   final_report_require_advice: true
 
-  # Если true, после final_deadline_at можно подготовить fallback-чек,
-  # даже если WHOOP/advice так и не готовы.
-  #
-  # Например:
+  # Если true, после final_deadline_at можно подготовить
+  # fallback-чек, даже если WHOOP/advice так и не готовы.
   fallback_after_deadline: true
+
+field_note:
+  # Добавлять FIELD NOTE в первый wake receipt.
+  #
+  # FIELD NOTE не является критической частью печати:
+  #
+  # Ollama
+  #   -> local grammar
+  #   -> emergency fallback
+  #
+  # Ошибка генерации через Ollama не должна ломать wake receipt.
+  enabled: true
+
+  ollama:
+    # Использовать Ollama как основной источник FIELD NOTE.
+    #
+    # Если false, receiptworker сразу перейдёт
+    # к локальному grammar generator.
+    enabled: false
+
+    # Например:
+    # http://127.0.0.1:11434
+    # http://ollama:11434
+    base_url: ""
+
+    # Модель для генерации FIELD NOTE.
+    model: "qwen3.5:9b"
+
+    # Максимальное время ожидания Ollama.
+    # После timeout должен использоваться локальный fallback.
+    timeout: 10m
+
+    # Сколько Ollama держит модель загруженной после запроса.
+    keep_alive: 2h
 
 receipt:
   # Ширина чека в символах.
   #
-  # Частые варианты: 32 / 40 / 42 / 48.
+  # Частые варианты: 32 / 36 / 40 / 42 / 48.
   width: 42
 
   # Символ-разделитель секций.
-  # Renderer будет повторять его на всю ширину receipt.width.
   line_separator: "-"
 
   # Включить ASCII-арт в первом чеке.
   art_enabled: true
 
-  # Режим выбора ASCII-арта.
+  # Режим выбора ASCII-арта:
   #
   # deterministic
-  #
   # random
   art_mode: deterministic
 
-  # Максимум строк ASCII-арта, которые можно вставить в чек.
+  # Максимум строк ASCII-арта.
   max_art_lines: 8

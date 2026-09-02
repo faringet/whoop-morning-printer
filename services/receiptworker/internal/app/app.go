@@ -10,6 +10,7 @@ import (
 	platformpg "github.com/faringet/whoop-morning-printer/internal/platform/postgres"
 	"github.com/faringet/whoop-morning-printer/services/receiptworker/config"
 	"github.com/faringet/whoop-morning-printer/services/receiptworker/internal/art"
+	"github.com/faringet/whoop-morning-printer/services/receiptworker/internal/fieldnote"
 	"github.com/faringet/whoop-morning-printer/services/receiptworker/internal/storage"
 	"github.com/faringet/whoop-morning-printer/services/receiptworker/internal/worker"
 )
@@ -18,8 +19,9 @@ type App struct {
 	cfg *config.Config
 	log *slog.Logger
 
-	store  storage.Store
-	worker *worker.Worker
+	store              storage.Store
+	fieldNoteGenerator fieldnote.Generator
+	worker             *worker.Worker
 }
 
 func New(cfg *config.Config, log *slog.Logger) (*App, error) {
@@ -47,6 +49,7 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 	}
 
 	artSelector := art.NewSelector(templates)
+	fieldNoteGenerator := buildFieldNoteGenerator(cfg)
 
 	w, err := worker.New(log, worker.Config{
 		UserID: cfg.ReceiptWorker.UserID,
@@ -70,7 +73,7 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		ArtEnabled:  cfg.Receipt.IsArtEnabled(),
 		ArtMode:     cfg.Receipt.ArtMode,
 		ArtMaxLines: cfg.Receipt.MaxArtLines,
-	}, st, artSelector)
+	}, st, artSelector, fieldNoteGenerator)
 	if err != nil {
 		_ = st.Close()
 		return nil, fmt.Errorf("create worker: %w", err)
@@ -81,11 +84,33 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 	)
 
 	return &App{
-		cfg:    cfg,
-		log:    appLog,
-		store:  st,
-		worker: w,
+		cfg:                cfg,
+		log:                appLog,
+		store:              st,
+		fieldNoteGenerator: fieldNoteGenerator,
+		worker:             w,
 	}, nil
+}
+
+func buildFieldNoteGenerator(cfg *config.Config) fieldnote.Generator {
+	if !cfg.FieldNote.IsEnabled() {
+		return nil
+	}
+
+	generators := make([]fieldnote.Generator, 0, 3)
+
+	if cfg.FieldNote.Ollama.IsEnabled() {
+		ollamaGenerator := fieldnote.NewOllamaGenerator(cfg.FieldNote.Ollama.BaseURL, cfg.FieldNote.Ollama.Model, cfg.FieldNote.Ollama.KeepAlive, cfg.FieldNote.Ollama.Timeout)
+		generators = append(generators, ollamaGenerator)
+	}
+
+	grammarGenerator := fieldnote.NewGrammarGenerator()
+	generators = append(generators, grammarGenerator)
+
+	emergencyGenerator := fieldnote.NewEmergencyGenerator()
+	generators = append(generators, emergencyGenerator)
+
+	return fieldnote.NewResilientGenerator(generators...)
 }
 
 func openStore(cfg *config.Config) (storage.Store, error) {
@@ -137,6 +162,8 @@ func (a *App) Run(ctx context.Context) error {
 		slog.Bool("ensure_final_report_jobs", a.cfg.ReceiptWorker.ShouldEnsureFinalReportJobs()),
 		slog.Bool("final_report_require_advice", a.cfg.ReceiptWorker.ShouldRequireAdviceForFinalReport()),
 		slog.Bool("fallback_after_deadline", a.cfg.ReceiptWorker.ShouldFallbackAfterDeadline()),
+		slog.Bool("field_note_enabled", a.cfg.FieldNote.IsEnabled()),
+		slog.Bool("field_note_ollama_enabled", a.cfg.FieldNote.Ollama.IsEnabled()),
 		slog.Int("receipt_width", a.cfg.Receipt.Width),
 		slog.Bool("art_enabled", a.cfg.Receipt.IsArtEnabled()),
 		slog.String("art_mode", a.cfg.Receipt.ArtMode),

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/faringet/whoop-morning-printer/services/receiptworker/internal/fieldnote"
 	"log/slog"
 	"strings"
 	"time"
@@ -41,18 +42,14 @@ type Worker struct {
 	log *slog.Logger
 	cfg Config
 
-	store       storage.Store
-	artSelector *art.Selector
+	store              storage.Store
+	artSelector        *art.Selector
+	fieldNoteGenerator fieldnote.Generator
 
 	now func() time.Time
 }
 
-func New(
-	log *slog.Logger,
-	cfg Config,
-	store storage.Store,
-	artSelector *art.Selector,
-) (*Worker, error) {
+func New(log *slog.Logger, cfg Config, store storage.Store, artSelector *art.Selector, fieldNoteGenerator fieldnote.Generator) (*Worker, error) {
 	if log == nil {
 		log = slog.Default()
 	}
@@ -102,10 +99,11 @@ func New(
 			slog.String("layer", "worker"),
 			slog.String("module", "receiptworker.worker"),
 		),
-		cfg:         cfg,
-		store:       store,
-		artSelector: artSelector,
-		now:         time.Now,
+		cfg:                cfg,
+		store:              store,
+		artSelector:        artSelector,
+		fieldNoteGenerator: fieldNoteGenerator,
+		now:                time.Now,
 	}, nil
 }
 
@@ -257,6 +255,33 @@ func (w *Worker) processWakeReceiptTask(ctx context.Context, task storage.WakeRe
 		})
 	}
 
+	fieldNoteText := ""
+
+	if w.fieldNoteGenerator != nil {
+		startedAt := time.Now()
+
+		result, err := w.fieldNoteGenerator.Generate(ctx, fieldnote.Input{
+			UserID:     task.WakePlan.UserID,
+			WakePlanID: task.WakePlan.ID,
+			Date:       task.WakePlan.Date,
+		})
+		if err != nil {
+			w.log.Warn("field note generation failed",
+				slog.Int64("wake_plan_id", task.WakePlan.ID),
+				slog.Duration("duration", time.Since(startedAt)),
+				slog.Any("err", err),
+			)
+		} else {
+			fieldNoteText = result.Text
+
+			w.log.Info("field note generated",
+				slog.Int64("wake_plan_id", task.WakePlan.ID),
+				slog.String("source", string(result.Source)),
+				slog.Duration("duration", time.Since(startedAt)),
+			)
+		}
+	}
+
 	payloadText, err := render.RenderWakeReceipt(render.WakeReceiptInput{
 		Task: task,
 
@@ -265,8 +290,9 @@ func (w *Worker) processWakeReceiptTask(ctx context.Context, task storage.WakeRe
 		Width:         w.cfg.ReceiptWidth,
 		LineSeparator: w.cfg.ReceiptLineSeparator,
 
-		ArtName: selection.Name,
 		ArtText: selection.Text,
+
+		FieldNote: fieldNoteText,
 	})
 	if err != nil {
 		_, markErr := w.store.MarkPrintJobFailed(ctx, storage.MarkPrintJobFailedInput{
