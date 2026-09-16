@@ -2,7 +2,7 @@
  
 A personal morning automation system that turns a Telegram wake command into a physical receipt printed by a Mac mini that wakes itself shortly before the alarm, with WHOOP data and an iPhone StandBy widget in the loop.
 
-<!-- ![WHOOP Morning Printer hero](docs/images/hero.png) -->
+![WHOOP Morning Printer hero](docs/images/hero.jpeg)
 
 
   
@@ -35,7 +35,7 @@ A receipt printer turned out to be a much more entertaining interface. It is phy
 - [Architecture](#architecture)
 - [Components](#components)
 - [Mac mini and printing](#mac-mini-and-printing)
-- [iPhone StandBy widget](#iphone-standby-widget)
+- [iPhone app and StandBy widget](#iphone-app-and-standby-widget)
 - [Security](#security)
 - [Infrastructure and operations](#infrastructure-and-operations)
 - [Tech stack](#tech-stack)
@@ -54,39 +54,47 @@ The project lives across a few very different surfaces: Telegram for control, an
 
 ### StandBy widget
  
-<!-- ![MorningStation StandBy](docs/images/standby.png) -->
-  
+<p align="center">
+  <img src="docs/images/standby-night.jpeg" alt="MorningStation StandBy at night" width="420">
+</p>
+
 The widget shows the next scheduled wake time and stays useful even when the MorningStation app itself is closed.
 
  
 
-### Telegram control
+### Telegram Mini App
 
-The wake time is configured from Telegram, which acts as the main control surface for the routine.
+The wake plan is configured through a Telegram Mini App, which acts as the main control surface for creating, editing and cancelling the morning schedule.
+
+<p align="center">
+  <a href="docs/images/telegram-miniapp-overview.PNG"><img src="docs/images/telegram-miniapp-overview.PNG" alt="Telegram Mini App overview" width="32%"></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="docs/images/telegram-miniapp-wake-config.PNG"><img src="docs/images/telegram-miniapp-wake-config.PNG" alt="Telegram Mini App wake configuration" width="32%"></a>
+</p>
 
   
 
 ### Physical setup
 
-<!-- ![WHOOP Morning Printer physical setup](docs/images/physical-setup.jpg) -->
+<p align="center">
+  <img src="docs/images/physical-setup.jpeg" alt="WHOOP Morning Printer physical setup" width="92%">
+</p>
   
 A Mac mini runs the edge-side automation, controls sleep and wake scheduling, and prints through CUPS to the Star SP700.
 
 
 
-### Morning receipt
+### Physical output
 
-<!-- ![Wake Receipt](docs/images/wake-receipt.jpg) -->
+<p align="center">
+  <a href="docs/images/wake-receipt.jpeg"><img src="docs/images/wake-receipt.jpeg" alt="Wake receipt" width="32%"></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="docs/images/final-whoop-report.jpeg"><img src="docs/images/final-whoop-report.jpeg" alt="Final WHOOP report" width="32%"></a>
+</p>
 
-The first receipt acts as a physical wake-up signal and a short morning boot sequence.
+<p align="center"><sub>Wake receipt &nbsp;&middot;&nbsp; Final WHOOP report</sub></p>
 
-
-  
-### Final WHOOP report
-
-<!-- ![Final WHOOP report](docs/images/final-whoop-report.jpg) -->
-  
-A second receipt contains the morning health metrics and a short interpretation generated locally.
+The first receipt acts as a physical wake-up signal and a short morning boot sequence. A second receipt contains the morning health metrics and a short interpretation generated locally.
 
 
   
@@ -94,8 +102,7 @@ A second receipt contains the morning health metrics and a short interpretation 
 
 The routine starts in Telegram and ends with paper coming out of the printer.
 
-<!-- ![Morning flow](docs/images/readme/morning-flow.png) -->
-
+![Morning flow](docs/images/morning-flow.png)
   
 1. I set the wake time in Telegram or the MorningStation iPhone widget.
 
@@ -120,8 +127,7 @@ The important part is that none of this requires opening the MorningStation app 
 
 The system is split across three environments: external services, a VPS backend, and local devices in my home network.
 
-<!-- ![System architecture](docs/images/system-architecture.png) -->
-
+![System architecture](docs/images/system-architecture.png)
   
 The VPS is the persistent part of the system. It stores wake plans and print jobs, synchronizes WHOOP data, generates the morning interpretation, and exposes a small HTTPS gateway used by the devices outside the server.
 
@@ -145,8 +151,8 @@ Project is intentionally split into small services and edge-side agents. Each co
 | `printergateway` | VPS | Authenticated HTTPS boundary used by the Mac mini and the StandBy widget |
 | `wakeplanner` | Mac mini | Reads the active wake plan and schedules macOS wake and sleep using `pmset` |
 | `printeragent` | Mac mini | Claims print jobs, sends them to CUPS and reports the result back to the backend |
-| `MorningStation` | iPhone | Stores widget configuration and provides connection diagnostics |
-| `MorningStationWidget` | iPhone | Reads the active wake state independently and displays it in StandBy mode |
+| `MorningStation` | iPhone | Stores gateway and widget configuration, provides connection diagnostics, and exposes the latest widget snapshot |
+| `MorningStationWidget` | iPhone | Fetches the active wake state from `printergateway` independently and displays it in StandBy mode |
 
   
 
@@ -188,15 +194,20 @@ A typical night looks roughly like this:
 
 
   
-## iPhone StandBy widget
+## iPhone app and StandBy widget
 
 The iPhone side is built around a small SwiftUI app and a WidgetKit extension designed for StandBy mode.
 
-<!-- ![MorningStation StandBy widget 1](docs/images/readme/standby-widget-1.png) -->
-<!-- ![MorningStation StandBy widget 2](docs/images/readme/standby-widget-2.png) -->
+### MorningStation app
+
+<p align="center">
+  <img src="docs/images/morningstation-app.png" alt="MorningStation app settings and latest widget snapshot" width="340">
+</p>
 
 
 The main `MorningStation` app is mostly responsible for configuration: it stores the gateway URL and display token, provides connection diagnostics, and shares the required settings with the widget through an App Group.
+
+### StandBy widget
 
 The widget itself does not depend on the app staying open. It fetches the active wake state directly from `printergateway`, stores the latest successful response in a shared snapshot, and uses that cached value as a fallback if the next network request fails.
 
