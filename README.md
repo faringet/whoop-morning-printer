@@ -4,7 +4,7 @@ A personal morning automation system that turns a Telegram wake command into a p
 
 ![WHOOP Morning Printer hero](docs/images/hero.jpeg)
 
-
+**Project story:** [Why I put a dot-matrix printer next to my bed](https://habr.com/ru/articles/1090126/) *(Habr, in Russian)*
   
 ## Overview
 
@@ -348,6 +348,8 @@ The core morning workflow is already working, so the next steps are mostly about
 
 - **Operational alerts** - extend the existing observability stack with useful alerts for failed print jobs, unhealthy services, missed morning runs and infrastructure problems.
 
+- **Shelly sunrise lighting** - extend the Mac mini `wakeplanner` to control a [Shelly Duo Bulb](https://www.shelly.com/products/shelly-duo-bulb-e27-gen3), gradually increasing warm light before the scheduled wake time and completing the sunrise shortly after the alarm.
+
 - **Zigbee room automation** - add a Zigbee coordinator and connect physical devices to the wake workflow. One of the first experiments I want to try is a motorized window opener that can automatically open the window around wake time.
 
 - **Android TV wake integration** - use the Android TV in the same room as another physical wake surface. The idea is to have the system automatically turn the TV on as part of the morning sequence, potentially showing a simple wake screen or morning status.
@@ -398,7 +400,10 @@ The project started as a simple idea to print WHOOP data in the morning and grad
 
 - [x] ~~VPS observability with Grafana, Prometheus, Loki, Alloy, cAdvisor and node_exporter~~
 
+- [x] ~~Shelly Duo Bulb E27 Gen3 setup and local HTTP control verified~~
+
   
+- [ ] Add sunrise lighting to `wakeplanner`
 
 - [ ] Migrate the physical edge from Mac mini to a compact SBC
 
